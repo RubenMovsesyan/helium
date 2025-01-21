@@ -1,0 +1,4 @@
+[workspace]
+members = [ 
+  "helium", "helium_ecs", "helium_io", "helium_renderer",
+]
