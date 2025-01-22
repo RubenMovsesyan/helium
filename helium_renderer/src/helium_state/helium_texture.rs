@@ -1,6 +1,3 @@
-// std imports
-use std::sync::Arc;
-
 // wgpu imports
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
@@ -45,28 +42,7 @@ const HELIUM_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: BindGroupLayoutDescriptor =
         ],
     };
 
-pub struct HeliumTextureBindGroupLayout(Arc<BindGroupLayout>);
-
-impl HeliumTextureBindGroupLayout {
-    // Creates a bind group layout from the default descriptor
-    // Use this in the texture to make sure all the layouts are correct
-    pub fn from_device(device: &Device) -> Self {
-        Self(Arc::new(device.create_bind_group_layout(
-            &HELIUM_TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR,
-        )))
-    }
-
-    pub fn get_layout(&self) -> Arc<BindGroupLayout> {
-        self.0.clone()
-    }
-}
-
-impl Clone for HeliumTextureBindGroupLayout {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
+#[allow(unused)]
 pub struct HeliumTexture {
     texture: Texture,
     view: TextureView,

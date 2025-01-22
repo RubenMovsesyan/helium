@@ -12,7 +12,8 @@ use wgpu::{
 
 use super::{instance::InstanceRaw, vertex::Vertex};
 use crate::helium_state::helium_texture::DEPTH_FORMAT;
-pub struct HeliumRenderPipeline(Arc<RenderPipeline>);
+
+pub struct HeliumRenderPipeline;
 
 impl HeliumRenderPipeline {
     pub fn construct_from_layouts<V, P>(

@@ -12,9 +12,6 @@ use winit::{
     window::{Window, WindowId},
 };
 
-// Async
-use smol::{io, net, prelude::*, Unblock};
-
 // Helium rendering modules
 mod helium_state;
 // Helium rendering imports
@@ -83,20 +80,8 @@ impl ApplicationHandler for App {
         }
     }
 
+    #[allow(unused_variables)]
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.window.as_ref().unwrap().request_redraw();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let future = run();
-        assert!(true);
-        smol::block_on(future);
-        assert!(true);
     }
 }

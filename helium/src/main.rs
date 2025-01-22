@@ -1,3 +1,4 @@
+use helium_ecs;
 use helium_renderer;
 use pollster::block_on;
 

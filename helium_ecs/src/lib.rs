@@ -1,5 +1,55 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use std::{
+    cell::{Ref, RefMut},
+    collections::{hash_map::Iter, HashMap},
+};
+
+use entity::Entity;
+use log::info;
+use world::World;
+
+mod component;
+mod entity;
+mod world;
+
+pub struct ECS {
+    world: World,
+}
+
+impl ECS {
+    pub fn new() -> Self {
+        Self {
+            world: World::new(),
+        }
+    }
+
+    pub fn new_entity(&mut self) -> Entity {
+        self.world.new_entity()
+    }
+
+    pub fn add_component<ComponentType: 'static>(
+        &mut self,
+        entity: Entity,
+        component: ComponentType,
+    ) {
+        self.world.add_component_to_entity(entity, component);
+    }
+
+    pub fn remove_component<ComponentType: 'static>(&mut self, entity: Entity) {
+        self.world
+            .borrow_component_map_mut::<ComponentType>()
+            .unwrap()
+            .remove(&entity);
+    }
+
+    pub fn query<ComponentType: 'static>(&self) -> Ref<'_, HashMap<Entity, ComponentType>> {
+        self.world.borrow_component_map::<ComponentType>().unwrap()
+    }
+
+    pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
+        self.world
+            .borrow_component_map_mut::<ComponentType>()
+            .unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -7,8 +57,117 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn test_ecs_struct() {
+        struct Health(i32);
+        struct Name(String);
+        struct Player;
+
+        let mut ecs = ECS::new();
+
+        let ralph = ecs.new_entity();
+        let betty = ecs.new_entity();
+        let player = ecs.new_entity();
+
+        ecs.add_component(ralph, Health(100));
+        ecs.add_component(ralph, Name(String::from("Ralph")));
+        ecs.add_component(betty, Health(100));
+        ecs.add_component(betty, Name(String::from("Betty")));
+        ecs.add_component(player, Health(100));
+        ecs.add_component(player, Player);
+
+        let mut healths = ecs.query_mut::<Health>();
+        let names = ecs.query::<Name>();
+        for (name, health) in healths.iter_mut().filter_map(|(health_id, health)| {
+            if let Some(name) = names.get(health_id) {
+                return Some((name, health));
+            }
+            None
+        }) {
+            assert_eq!(health.0, 100);
+            while health.0 > 0 {
+                info!("{} has health {}", name.0, health.0);
+                health.0 -= 1;
+            }
+            assert_eq!(health.0, 0);
+
+            info!("{} has perished", name.0);
+        }
+
+        drop(names);
+
+        let players = ecs.query::<Player>();
+        for health in healths.iter().filter_map(|(health_id, health)| {
+            if let Some(_player) = players.get(health_id) {
+                return Some(health);
+            }
+            None
+        }) {
+            assert_eq!(health.0, 100);
+        }
+    }
+
+    #[test]
+    fn test_ecs_basics() {
+        struct Health(i32);
+        struct Name(String);
+        struct Player;
+
+        let mut world = World::new();
+
+        let ralph = world.new_entity();
+        world.add_component_to_entity(ralph, Health(100));
+        world.add_component_to_entity(ralph, Name(String::from("Ralph")));
+
+        let betty = world.new_entity();
+        world.add_component_to_entity(betty, Health(100));
+        world.add_component_to_entity(betty, Name(String::from("Betty")));
+
+        let player = world.new_entity();
+        world.add_component_to_entity(player, Health(100));
+        world.add_component_to_entity(player, Player);
+
+        let mut healths = world.borrow_component_map_mut::<Health>().unwrap();
+        let names = world.borrow_component_map::<Name>().unwrap();
+        let iter = healths.iter_mut().filter_map(|(health_id, health)| {
+            if let Some(name) = names.get(health_id) {
+                return Some((health, name));
+            }
+            None
+        });
+
+        for (health, name) in iter {
+            assert_eq!(health.0, 100);
+            while health.0 > 0 {
+                info!("{} has health {}", name.0, health.0);
+                health.0 -= 1;
+            }
+            assert_eq!(health.0, 0);
+
+            info!("{} has perished", name.0);
+        }
+
+        drop(healths);
+        drop(names);
+
+        let healths = world.borrow_component_map::<Health>().unwrap();
+        let players = world.borrow_component_map::<Player>().unwrap();
+        let iter = healths.iter().filter_map(|(health_id, health)| {
+            if let Some(_player) = players.get(health_id) {
+                return Some(health);
+            }
+            None
+        });
+
+        for health in iter {
+            assert_eq!(health.0, 100);
+            info!("Player has health {}", health.0);
+        }
+
+        drop(healths);
+        drop(players);
+
+        world.remove_entity(ralph);
+
+        assert_eq!(world.get_num_entities(), 2);
     }
 }

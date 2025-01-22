@@ -6,12 +6,11 @@ use smol::block_on;
 
 // wgpu imports
 use wgpu::{
-    util::RenderEncoder, Adapter, Backends, Color, CommandEncoderDescriptor, Device,
-    DeviceDescriptor, Features, Instance, InstanceDescriptor, Limits, LoadOp, Operations,
-    PowerPreference, PresentMode, Queue, RenderPassColorAttachment,
-    RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
-    RequestAdapterOptionsBase, StoreOp, Surface, SurfaceCapabilities, SurfaceConfiguration,
-    SurfaceError, TextureUsages, TextureViewDescriptor,
+    Adapter, Backends, Color, CommandEncoderDescriptor, Device, DeviceDescriptor, Features,
+    Instance, InstanceDescriptor, Limits, LoadOp, Operations, PowerPreference, PresentMode, Queue,
+    RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
+    RenderPipeline, RequestAdapterOptionsBase, StoreOp, Surface, SurfaceCapabilities,
+    SurfaceConfiguration, SurfaceError, TextureUsages, TextureViewDescriptor,
 };
 
 // winit imports
@@ -28,7 +27,7 @@ mod resources;
 
 // module imports
 use camera::{Camera, CameraController};
-use helium_texture::{HeliumTexture, HeliumTextureBindGroupLayout};
+use helium_texture::HeliumTexture;
 use model::{model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline, Model};
 
 pub struct HeliumState {

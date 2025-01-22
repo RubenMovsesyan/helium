@@ -5,7 +5,7 @@ use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, SquareMatrix, Vector
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, Device, Queue,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, Device,
     ShaderStages,
 };
 use winit::{
@@ -134,12 +134,12 @@ impl Camera {
         OPENGL_TO_WGPU_MATIX * proj * view
     }
 
-    fn build_view_projection_matrix(&self) -> Matrix4<f32> {
-        let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
-        let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
+    // fn build_view_projection_matrix(&self) -> Matrix4<f32> {
+    //     let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
+    //     let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
 
-        OPENGL_TO_WGPU_MATIX * proj * view
-    }
+    //     OPENGL_TO_WGPU_MATIX * proj * view
+    // }
 
     pub fn get_layout(&self) -> &BindGroupLayout {
         &self.layout
@@ -159,9 +159,9 @@ impl CameraUniform {
         }
     }
 
-    pub fn update_view_proj(&mut self, camera: &Camera) {
-        self.view_proj = camera.build_view_projection_matrix().into();
-    }
+    // pub fn update_view_proj(&mut self, camera: &Camera) {
+    //     self.view_proj = camera.build_view_projection_matrix().into();
+    // }
 
     pub fn update_view_proj_with_matrix(&mut self, matrix: Matrix4<f32>) {
         self.view_proj = matrix.into();

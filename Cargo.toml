@@ -2,3 +2,4 @@
 members = [ 
   "helium", "helium_ecs", "helium_io", "helium_renderer",
 ]
+resolver = "2"

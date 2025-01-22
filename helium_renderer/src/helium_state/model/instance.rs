@@ -27,6 +27,7 @@ pub struct InstanceRaw {
     model: [[f32; 4]; 4],
 }
 
+#[allow(unused)]
 impl Instance {
     pub fn new(position: Vector3<f32>, rotation: Quaternion<f32>) -> Self {
         Self { position, rotation }

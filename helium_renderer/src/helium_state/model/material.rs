@@ -3,7 +3,7 @@ use log::*;
 use std::{fs, io, path::Path};
 use wgpu::{Device, Queue};
 
-use crate::helium_state::helium_texture::{HeliumTexture, HeliumTextureBindGroupLayout};
+use crate::helium_state::helium_texture::HeliumTexture;
 
 pub struct Material {
     name: String,
@@ -22,7 +22,6 @@ impl Material {
 
 pub fn load_materials<P>(
     file_path: P,
-    name: String,
     device: &Device,
     queue: &Queue,
 ) -> Result<Vec<Material>, io::Error>
@@ -59,6 +58,5 @@ where
         }
     }
 
-    // Err(io::Error::new(io::ErrorKind::NotFound, "Oops!"))
     Ok(materials)
 }

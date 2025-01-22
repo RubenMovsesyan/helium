@@ -5,6 +5,7 @@ use wgpu::{
 
 use super::{instance::Instance, model_vertex::ModelVertex};
 
+#[allow(unused)]
 pub struct Mesh {
     name: String,
     vertex_buffer: Buffer,

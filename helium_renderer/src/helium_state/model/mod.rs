@@ -4,7 +4,6 @@ pub mod material;
 pub mod mesh;
 pub mod model_vertex;
 pub mod render_pipeline;
-pub mod transform;
 pub mod vertex;
 
 // Std
@@ -140,13 +139,7 @@ impl Model {
                             let path_to_material =
                                 file_path.as_ref().parent().unwrap().join(line_split[1]);
                             materials.append(
-                                &mut load_materials(
-                                    path_to_material,
-                                    line_split[1].to_string(),
-                                    device,
-                                    queue,
-                                )
-                                .unwrap(),
+                                &mut load_materials(path_to_material, device, queue).unwrap(),
                             );
                         }
                         // This is the object using the material
