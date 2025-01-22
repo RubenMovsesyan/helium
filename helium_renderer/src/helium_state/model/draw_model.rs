@@ -31,12 +31,7 @@ where
         material: &'b Material,
         camera_bind_group: &'b BindGroup,
     ) {
-        self.draw_mesh_instanced(
-            mesh,
-            material,
-            0..mesh.get_num_instances(),
-            camera_bind_group,
-        );
+        self.draw_mesh_instanced(mesh, material, mesh.get_instances(), camera_bind_group);
     }
 
     fn draw_mesh_instanced(
@@ -47,7 +42,7 @@ where
         camera_bind_group: &'b BindGroup,
     ) {
         self.set_vertex_buffer(0, mesh.get_vertex_buffer().slice(..));
-        self.set_vertex_buffer(1, mesh.get_instance_buffer().slice(..));
+        // self.set_vertex_buffer(1, mesh.get_instance_buffer().slice(..));
         self.set_index_buffer(mesh.get_index_buffer().slice(..), IndexFormat::Uint32);
         self.set_bind_group(
             0,

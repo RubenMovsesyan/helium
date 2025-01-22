@@ -7,7 +7,7 @@ pub mod render_pipeline;
 pub mod vertex;
 
 // Std
-use std::{io::Error, path::Path};
+use std::{io::Error, ops::Range, path::Path};
 
 use model_vertex::ModelVertex;
 // wgpu imports
@@ -20,12 +20,10 @@ use log::*;
 use helium_io::read_lines;
 use material::{load_materials, Material};
 use mesh::Mesh;
-// use render_pipeline::HeliumRenderPipeline;
 
 pub struct Model {
     meshes: Vec<Mesh>,
     materials: Vec<Material>,
-    // pipeline: Option<HeliumRenderPipeline>,
 }
 
 impl Model {
@@ -35,6 +33,12 @@ impl Model {
 
     pub fn get_materials(&self) -> &[Material] {
         &self.materials
+    }
+
+    pub fn set_instances(&mut self, instances: Range<u32>) {
+        for mesh in self.meshes.iter_mut() {
+            mesh.set_instances(instances.clone());
+        }
     }
 
     pub fn from_obj<P>(file_path: P, device: &Device, queue: &Queue) -> Result<Self, Error>

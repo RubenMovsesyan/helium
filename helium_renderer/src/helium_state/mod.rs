@@ -1,16 +1,19 @@
 // std
 use std::{iter::once, sync::Arc};
 
+use cgmath::{One, Quaternion, Vector3, Zero};
 // Async
 use smol::block_on;
 
 // wgpu imports
 use wgpu::{
-    Adapter, Backends, Color, CommandEncoderDescriptor, Device, DeviceDescriptor, Features,
-    Instance, InstanceDescriptor, Limits, LoadOp, Operations, PowerPreference, PresentMode, Queue,
-    RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
-    RenderPipeline, RequestAdapterOptionsBase, StoreOp, Surface, SurfaceCapabilities,
-    SurfaceConfiguration, SurfaceError, TextureUsages, TextureViewDescriptor,
+    util::{BufferInitDescriptor, DeviceExt, RenderEncoder},
+    Adapter, Backends, Buffer, BufferUsages, Color, CommandEncoderDescriptor, Device,
+    DeviceDescriptor, Features, Instance, InstanceDescriptor, Limits, LoadOp, Operations,
+    PowerPreference, PresentMode, Queue, RenderPassColorAttachment,
+    RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
+    RequestAdapterOptionsBase, StoreOp, Surface, SurfaceCapabilities, SurfaceConfiguration,
+    SurfaceError, TextureUsages, TextureViewDescriptor,
 };
 
 // winit imports
@@ -22,13 +25,13 @@ use log::*;
 // State handling modules
 mod camera;
 mod helium_texture;
-mod model;
+pub mod model;
 mod resources;
 
 // module imports
 use camera::{Camera, CameraController};
 use helium_texture::HeliumTexture;
-use model::{model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline, Model};
+use model::{instance, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline, Model};
 
 pub struct HeliumState {
     surface: Surface<'static>,
@@ -50,9 +53,83 @@ pub struct HeliumState {
 
     // Models to render
     models: Vec<Model>,
+
+    // Instances for all the instance
+    model_instances: Vec<instance::Instance>,
+
+    // Instance buffer for all the instances
+    model_instance_buffer: Buffer,
 }
 
 impl HeliumState {
+    // Set the instances for a particular object in the state
+    pub fn create_instances(
+        &mut self,
+        object_index: usize,
+        mut instances: Vec<instance::Instance>,
+    ) {
+        let range_start = self.model_instances.len() as u32;
+        self.model_instances.append(&mut instances);
+        info!("model instances: {:#?}", self.model_instances);
+        let range_end = self.model_instances.len() as u32;
+
+        self.models[object_index].set_instances(range_start..range_end);
+
+        self.model_instance_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Model instance buffer"),
+            contents: bytemuck::cast_slice(
+                self.model_instances
+                    .iter()
+                    .map(|instance| instance.to_raw())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+        });
+
+        self.queue.write_buffer(
+            &self.model_instance_buffer,
+            0,
+            bytemuck::cast_slice(
+                self.model_instances
+                    .iter()
+                    .map(|instance| instance.to_raw())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
+        );
+    }
+
+    // Modify the particular instance in the instance buffer
+    pub fn update_instance(&mut self, object_index: usize, instance: instance::Instance) {
+        self.model_instances[object_index] = instance;
+
+        use std::mem;
+        // TODO: Make this into a const
+        let offset = mem::size_of::<instance::InstanceRaw>();
+
+        let data = self.model_instances[object_index].to_raw();
+        // self.queue.write_buffer(
+        //     &self.model_instance_buffer,
+        //     (object_index * offset) as u64,
+        //     bytemuck::cast_slice(&[data]),
+        // );
+        self.queue.write_buffer(
+            &self.model_instance_buffer,
+            0,
+            bytemuck::cast_slice(
+                self.model_instances
+                    .iter()
+                    .map(|instance| {
+                        info!("{:#?}", instance.to_raw());
+                        instance.to_raw()
+                    })
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
+        );
+    }
+
     pub fn new(window: Arc<Window>) -> Self {
         let instance = Self::create_gpu_instance();
         let surface = instance.create_surface(window.clone()).unwrap();
@@ -78,6 +155,14 @@ impl HeliumState {
 
         let depth_texture = HeliumTexture::create_depth_texture(&device, &config);
 
+        let model_instances = vec![instance::Instance::new(Vector3::zero(), Quaternion::one())];
+
+        let model_instance_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Model instance buffer"),
+            contents: bytemuck::cast_slice(&[model_instances[0].to_raw()]),
+            usage: BufferUsages::VERTEX,
+        });
+
         // TODO: Fix this ugly generic
         let render_pipeline = HeliumRenderPipeline::construct_from_layouts::<ModelVertex, &str>(
             vec![&HeliumTexture::get_layout(&device), camera.get_layout()],
@@ -101,6 +186,8 @@ impl HeliumState {
             depth_texture,
             render_pipeline,
             models: obj_models,
+            model_instances,
+            model_instance_buffer,
         }
     }
 
@@ -222,6 +309,8 @@ impl HeliumState {
 
             // Set the render pipeline to the model render pipeline
             render_pass.set_pipeline(self.render_pipeline.as_ref());
+            // Set this to the current held instance buffer that stores all the instance data for each mesh
+            render_pass.set_vertex_buffer(1, self.model_instance_buffer.slice(..));
 
             // Sets each of the bind groups
             use model::draw_model::DrawModel;

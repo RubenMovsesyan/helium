@@ -3,9 +3,10 @@ use wgpu::{BufferAddress, VertexAttribute, VertexBufferLayout, VertexFormat, Ver
 
 use super::vertex::Vertex;
 
+#[derive(Debug)]
 pub struct Instance {
-    position: Vector3<f32>,
-    rotation: Quaternion<f32>,
+    pub position: Vector3<f32>,
+    pub rotation: Quaternion<f32>,
 }
 
 impl Default for Instance {
