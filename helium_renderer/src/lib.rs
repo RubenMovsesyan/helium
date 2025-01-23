@@ -20,10 +20,12 @@ pub use helium_state::model::instance;
 pub use helium_state::HeliumState;
 
 pub type StartupFunction = fn(&mut HeliumState);
+pub type UpdateFunction = fn(&mut HeliumState, Instant);
 
 pub struct HeliumRenderer {
     event_loop: Option<EventLoop<()>>,
     startup_fn: Option<Vec<StartupFunction>>,
+    update_fn: Option<Vec<UpdateFunction>>,
 }
 
 impl HeliumRenderer {
@@ -34,6 +36,7 @@ impl HeliumRenderer {
         Self {
             event_loop: Some(event_loop),
             startup_fn: None,
+            update_fn: None,
         }
     }
 
@@ -47,12 +50,26 @@ impl HeliumRenderer {
         self
     }
 
+    pub fn add_update(&mut self, update_function: UpdateFunction) -> &mut Self {
+        if let Some(update_fn_vec) = self.update_fn.as_mut() {
+            update_fn_vec.push(update_function);
+        } else {
+            self.update_fn = Some(vec![update_function]);
+        }
+
+        self
+    }
+
     pub async fn run(&mut self) {
         info!("Starting window");
         let mut app = App::default();
 
         if let Some(startup_functions) = self.startup_fn.take() {
             app.set_startup(startup_functions);
+        }
+
+        if let Some(update_functions) = self.update_fn.take() {
+            app.set_update(update_functions);
         }
 
         _ = self.event_loop.take().unwrap().run_app(&mut app);
@@ -65,6 +82,7 @@ struct App {
     window: Option<Arc<Window>>,
     state: Option<HeliumState>,
     startup_fn: Vec<StartupFunction>,
+    update_fn: Vec<UpdateFunction>,
     // TEST: this is for testing time
     time: Option<Instant>,
 }
@@ -72,6 +90,11 @@ struct App {
 impl App {
     fn set_startup(&mut self, startup_fn: Vec<StartupFunction>) -> &mut Self {
         self.startup_fn = startup_fn;
+        self
+    }
+
+    fn set_update(&mut self, update_fn: Vec<UpdateFunction>) -> &mut Self {
+        self.update_fn = update_fn;
         self
     }
 }
@@ -91,37 +114,6 @@ impl ApplicationHandler for App {
         for startup_function in self.startup_fn.iter() {
             startup_function(self.state.as_mut().unwrap());
         }
-        // self.state
-        //     .as_mut()
-        //     .unwrap()
-        //     .create_object("./assets/suzzane.obj", {
-        //         let mut instances = Vec::new();
-        //         for i in 0..1 {
-        //             instances.push(instance::Instance {
-        //                 position: Vector3 {
-        //                     x: 1.0 * i as f32,
-        //                     y: 0.0,
-        //                     z: 0.0,
-        //                 },
-        //                 rotation: Quaternion::one(),
-        //             });
-        //         }
-        //         instances
-        //     });
-        // self.state.as_mut().unwrap().create_instances(0, {
-        //     let mut instances = Vec::new();
-        //     for i in 0..1 {
-        //         instances.push(instance::Instance {
-        //             position: Vector3 {
-        //                 x: 1.0 * i as f32,
-        //                 y: 0.0,
-        //                 z: 0.0,
-        //             },
-        //             rotation: Quaternion::one(),
-        //         });
-        //     }
-        //     instances
-        // });
     }
 
     fn window_event(
@@ -145,32 +137,35 @@ impl ApplicationHandler for App {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Some(helium_state) = self.state.as_mut() {
-                        helium_state.update_instances(0, {
-                            let mut instances = Vec::new();
+                        // helium_state.update_instances(0, {
+                        //     let mut instances = Vec::new();
 
-                            for i in -5..=5 {
-                                instances.push(instance::Instance {
-                                    position: Vector3 {
-                                        x: 5.0 * i as f32,
-                                        y: 1.0
-                                            * f32::sin(
-                                                (Instant::now() - *self.time.as_ref().unwrap())
-                                                    .as_secs_f32()
-                                                    + i as f32,
-                                            ),
-                                        z: 1.0
-                                            * f32::cos(
-                                                (Instant::now() - *self.time.as_ref().unwrap())
-                                                    .as_secs_f32()
-                                                    - i as f32,
-                                            ),
-                                    },
-                                    rotation: Quaternion::one(),
-                                })
-                            }
+                        //     for i in -5..=5 {
+                        //         instances.push(instance::Instance {
+                        //             position: Vector3 {
+                        //                 x: 5.0 * i as f32,
+                        //                 y: 1.0
+                        //                     * f32::sin(
+                        //                         (Instant::now() - *self.time.as_ref().unwrap())
+                        //                             .as_secs_f32()
+                        //                             + i as f32,
+                        //                     ),
+                        //                 z: 1.0
+                        //                     * f32::cos(
+                        //                         (Instant::now() - *self.time.as_ref().unwrap())
+                        //                             .as_secs_f32()
+                        //                             - i as f32,
+                        //                     ),
+                        //             },
+                        //             rotation: Quaternion::one(),
+                        //         })
+                        //     }
 
-                            instances
-                        });
+                        //     instances
+                        // });
+                        for update_function in self.update_fn.iter() {
+                            update_function(helium_state, *self.time.as_ref().unwrap());
+                        }
                         helium_state.update();
                         helium_state.render().unwrap();
                     }
