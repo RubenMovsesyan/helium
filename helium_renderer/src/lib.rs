@@ -5,7 +5,6 @@ use cgmath::{One, Quaternion, Vector3};
 // Logging imports
 use log::*;
 
-use wgpu::InstanceDescriptor;
 // winit imports
 use winit::{
     application::ApplicationHandler,
@@ -17,16 +16,47 @@ use winit::{
 // Helium rendering modules
 mod helium_state;
 // Helium rendering imports
-use helium_state::model::instance;
-use helium_state::HeliumState;
+pub use helium_state::model::instance;
+pub use helium_state::HeliumState;
 
-pub async fn run() {
-    info!("Starting window");
-    let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll);
+pub type StartupFunction = fn(&mut HeliumState);
 
-    let mut app = App::default();
-    _ = event_loop.run_app(&mut app);
+pub struct HeliumRenderer {
+    event_loop: Option<EventLoop<()>>,
+    startup_fn: Option<Vec<StartupFunction>>,
+}
+
+impl HeliumRenderer {
+    pub fn new() -> Self {
+        let event_loop = EventLoop::new().unwrap();
+        event_loop.set_control_flow(ControlFlow::Poll);
+
+        Self {
+            event_loop: Some(event_loop),
+            startup_fn: None,
+        }
+    }
+
+    pub fn add_startup(&mut self, startup_function: StartupFunction) -> &mut Self {
+        if let Some(startup_fn_vec) = self.startup_fn.as_mut() {
+            startup_fn_vec.push(startup_function);
+        } else {
+            self.startup_fn = Some(vec![startup_function]);
+        }
+
+        self
+    }
+
+    pub async fn run(&mut self) {
+        info!("Starting window");
+        let mut app = App::default();
+
+        if let Some(startup_functions) = self.startup_fn.take() {
+            app.set_startup(startup_functions);
+        }
+
+        _ = self.event_loop.take().unwrap().run_app(&mut app);
+    }
 }
 
 // This is the actual window application that we will create
@@ -34,9 +64,16 @@ pub async fn run() {
 struct App {
     window: Option<Arc<Window>>,
     state: Option<HeliumState>,
-
+    startup_fn: Vec<StartupFunction>,
     // TEST: this is for testing time
     time: Option<Instant>,
+}
+
+impl App {
+    fn set_startup(&mut self, startup_fn: Vec<StartupFunction>) -> &mut Self {
+        self.startup_fn = startup_fn;
+        self
+    }
 }
 
 // Implementation to handle the window application
@@ -51,20 +88,40 @@ impl ApplicationHandler for App {
         self.time = Some(Instant::now());
         self.state = Some(HeliumState::new(self.window.as_ref().unwrap().clone()));
         // TEST: this is a test for object transformation
-        self.state.as_mut().unwrap().create_instances(0, {
-            let mut instances = Vec::new();
-            for i in 0..1 {
-                instances.push(instance::Instance {
-                    position: Vector3 {
-                        x: 1.0 * i as f32,
-                        y: 0.0,
-                        z: 0.0,
-                    },
-                    rotation: Quaternion::one(),
-                });
-            }
-            instances
-        });
+        for startup_function in self.startup_fn.iter() {
+            startup_function(self.state.as_mut().unwrap());
+        }
+        // self.state
+        //     .as_mut()
+        //     .unwrap()
+        //     .create_object("./assets/suzzane.obj", {
+        //         let mut instances = Vec::new();
+        //         for i in 0..1 {
+        //             instances.push(instance::Instance {
+        //                 position: Vector3 {
+        //                     x: 1.0 * i as f32,
+        //                     y: 0.0,
+        //                     z: 0.0,
+        //                 },
+        //                 rotation: Quaternion::one(),
+        //             });
+        //         }
+        //         instances
+        //     });
+        // self.state.as_mut().unwrap().create_instances(0, {
+        //     let mut instances = Vec::new();
+        //     for i in 0..1 {
+        //         instances.push(instance::Instance {
+        //             position: Vector3 {
+        //                 x: 1.0 * i as f32,
+        //                 y: 0.0,
+        //                 z: 0.0,
+        //             },
+        //             rotation: Quaternion::one(),
+        //         });
+        //     }
+        //     instances
+        // });
     }
 
     fn window_event(

@@ -1,8 +1,22 @@
-use helium_ecs;
-use helium_renderer;
-use pollster::block_on;
+use helium::*;
+
+fn add_model(state: &mut HeliumState) {
+    state.create_object("./assets/suzzane.obj", {
+        let mut instances = Vec::new();
+        for i in 0..1 {
+            instances.push(Instance {
+                position: Vector3 {
+                    x: 1.0 * i as f32,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                rotation: Quaternion::one(),
+            });
+        }
+        instances
+    });
+}
 
 fn main() {
-    pretty_env_logger::init();
-    block_on(helium_renderer::run());
+    let _helium = Helium::new().add_startup(add_model).run();
 }

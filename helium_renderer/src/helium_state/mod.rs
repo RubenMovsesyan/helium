@@ -1,5 +1,5 @@
 // std
-use std::{borrow::Borrow, iter::once, sync::Arc};
+use std::{borrow::Borrow, iter::once, path::Path, sync::Arc};
 
 use cgmath::{One, Quaternion, Vector3, Zero};
 // Async
@@ -32,11 +32,11 @@ mod resources;
 use camera::{Camera, CameraController};
 use helium_texture::HeliumTexture;
 use model::{
-    instance::{self, INSTANCE_RAW_SIZE},
-    model_vertex::ModelVertex,
-    render_pipeline::HeliumRenderPipeline,
+    instance::INSTANCE_RAW_SIZE, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline,
     Model,
 };
+
+pub use model::instance;
 
 pub struct HeliumState {
     surface: Surface<'static>,
@@ -75,10 +75,8 @@ impl HeliumState {
     ) {
         let range_start = self.model_instances.len() as u32;
         self.model_instances.append(&mut instances);
-        info!("model instances: {:#?}", self.model_instances);
         let range_end = self.model_instances.len() as u32;
 
-        info!("Range Start: {} | Range End: {}", range_start, range_end);
         self.models[object_index].set_instances(range_start..range_end);
 
         self.model_instance_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
@@ -162,6 +160,21 @@ impl HeliumState {
         );
     }
 
+    // Creates an object and adds it to the scene
+    // and returns the index of the object in the renderer
+    pub fn create_object<P>(&mut self, model_path: P, instances: Vec<instance::Instance>) -> usize
+    where
+        P: AsRef<Path>,
+    {
+        let index = self.models.len();
+        self.models
+            .push(Model::from_obj(model_path, &self.device, &self.queue).unwrap());
+
+        self.update_instances(index, instances);
+
+        index
+    }
+
     pub fn new(window: Arc<Window>) -> Self {
         let instance = Self::create_gpu_instance();
         let surface = instance.create_surface(window.clone()).unwrap();
@@ -187,12 +200,14 @@ impl HeliumState {
 
         let depth_texture = HeliumTexture::create_depth_texture(&device, &config);
 
-        let model_instances = vec![instance::Instance::new(Vector3::zero(), Quaternion::one())];
+        // The default instance for all models will be at the world origin
+        // change the location by creating instances and adding them to this vector
+        let model_instances = vec![instance::Instance::default()];
 
         let model_instance_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Model instance buffer"),
             contents: bytemuck::cast_slice(&[model_instances[0].to_raw()]),
-            usage: BufferUsages::VERTEX,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
         });
 
         // TODO: Fix this ugly generic
@@ -205,8 +220,8 @@ impl HeliumState {
             "./helium_renderer/src/shaders/fragment_shader.wgsl",
         );
 
-        let mut obj_models = Vec::new();
-        obj_models.push(Model::from_obj("./assets/suzzane.obj", &device, &queue).unwrap());
+        let obj_models = Vec::new();
+        // obj_models.push(Model::from_obj("./assets/suzzane.obj", &device, &queue).unwrap());
 
         Self {
             surface,
@@ -223,14 +238,15 @@ impl HeliumState {
         }
     }
 
-    pub fn create_gpu_instance() -> Instance {
+    // Internal private functions for setting up the GPU
+    fn create_gpu_instance() -> Instance {
         Instance::new(&InstanceDescriptor {
             backends: Backends::PRIMARY,
             ..Default::default()
         })
     }
 
-    pub fn create_adapter(instance: Instance, surface: &Surface) -> Adapter {
+    fn create_adapter(instance: Instance, surface: &Surface) -> Adapter {
         block_on(instance.request_adapter(&RequestAdapterOptionsBase {
             power_preference: PowerPreference::default(),
             compatible_surface: Some(&surface),
@@ -239,7 +255,7 @@ impl HeliumState {
         .unwrap()
     }
 
-    pub fn create_device(adapter: &Adapter) -> (Device, Queue) {
+    fn create_device(adapter: &Adapter) -> (Device, Queue) {
         smol::block_on(adapter.request_device(
             &DeviceDescriptor {
                 required_features: Features::empty(),
@@ -252,7 +268,7 @@ impl HeliumState {
         .unwrap()
     }
 
-    pub fn create_surface_config(
+    fn create_surface_config(
         size: PhysicalSize<u32>,
         surface_capabilities: SurfaceCapabilities,
     ) -> SurfaceConfiguration {
