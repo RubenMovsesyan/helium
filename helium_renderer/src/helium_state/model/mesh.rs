@@ -39,6 +39,10 @@ impl Mesh {
         self.instances.clone()
     }
 
+    pub fn get_num_instances(&self) -> u32 {
+        self.instances.end - self.instances.start
+    }
+
     pub fn set_instances(&mut self, instances: Range<u32>) {
         self.instances = instances;
     }

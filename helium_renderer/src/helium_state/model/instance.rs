@@ -22,6 +22,8 @@ impl Default for Instance {
     }
 }
 
+pub const INSTANCE_RAW_SIZE: usize = std::mem::size_of::<InstanceRaw>();
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceRaw {

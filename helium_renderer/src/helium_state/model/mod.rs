@@ -41,6 +41,22 @@ impl Model {
         }
     }
 
+    pub fn get_instances(&self) -> Range<u32> {
+        if self.meshes.len() > 0 {
+            return self.meshes[0].get_instances();
+        }
+
+        0..1
+    }
+
+    pub fn get_num_instances(&self) -> u32 {
+        if self.meshes.len() > 0 {
+            return self.meshes[0].get_num_instances();
+        }
+
+        0
+    }
+
     pub fn from_obj<P>(file_path: P, device: &Device, queue: &Queue) -> Result<Self, Error>
     where
         P: AsRef<Path>,

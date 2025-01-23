@@ -1,5 +1,5 @@
 // std
-use std::{iter::once, sync::Arc};
+use std::{borrow::Borrow, iter::once, sync::Arc};
 
 use cgmath::{One, Quaternion, Vector3, Zero};
 // Async
@@ -31,7 +31,12 @@ mod resources;
 // module imports
 use camera::{Camera, CameraController};
 use helium_texture::HeliumTexture;
-use model::{instance, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline, Model};
+use model::{
+    instance::{self, INSTANCE_RAW_SIZE},
+    model_vertex::ModelVertex,
+    render_pipeline::HeliumRenderPipeline,
+    Model,
+};
 
 pub struct HeliumState {
     surface: Surface<'static>,
@@ -73,6 +78,7 @@ impl HeliumState {
         info!("model instances: {:#?}", self.model_instances);
         let range_end = self.model_instances.len() as u32;
 
+        info!("Range Start: {} | Range End: {}", range_start, range_end);
         self.models[object_index].set_instances(range_start..range_end);
 
         self.model_instance_buffer = self.device.create_buffer_init(&BufferInitDescriptor {
@@ -101,32 +107,58 @@ impl HeliumState {
     }
 
     // Modify the particular instance in the instance buffer
-    pub fn update_instance(&mut self, object_index: usize, instance: instance::Instance) {
-        self.model_instances[object_index] = instance;
+    pub fn update_instance(&mut self, instance_index: usize, instance: instance::Instance) {
+        self.model_instances[instance_index] = instance;
 
         use std::mem;
         // TODO: Make this into a const
-        let offset = mem::size_of::<instance::InstanceRaw>();
+        // let offset = mem::size_of::<instance::InstanceRaw>();
 
-        let data = self.model_instances[object_index].to_raw();
-        // self.queue.write_buffer(
-        //     &self.model_instance_buffer,
-        //     (object_index * offset) as u64,
-        //     bytemuck::cast_slice(&[data]),
-        // );
+        let data = self.model_instances[instance_index].to_raw();
         self.queue.write_buffer(
             &self.model_instance_buffer,
-            0,
-            bytemuck::cast_slice(
-                self.model_instances
-                    .iter()
-                    .map(|instance| {
-                        info!("{:#?}", instance.to_raw());
-                        instance.to_raw()
-                    })
-                    .collect::<Vec<_>>()
-                    .as_slice(),
-            ),
+            (instance_index * INSTANCE_RAW_SIZE) as u64,
+            bytemuck::cast_slice(&[data]),
+        );
+    }
+
+    // Modify all the instances of a particular object
+    pub fn update_instances(
+        &mut self,
+        object_index: usize,
+        mut instances: Vec<instance::Instance>,
+    ) {
+        // If the size of the new instances is greater than the range of the current instances
+        // For the object, then disregard those instances and create a new set of instances
+        // FIXME: find a better way to handle this
+        if instances.len() as u32 > self.models[object_index].get_num_instances() {
+            self.create_instances(object_index, instances);
+            return;
+        }
+
+        let offset = self.models[object_index].get_instances().start;
+        let size = instances.len();
+
+        for i in (0..size).rev() {
+            let instance = instances.remove(i);
+
+            self.model_instances[i + offset as usize] = instance;
+        }
+
+        let data = {
+            let mut d = Vec::with_capacity(size);
+
+            for j in offset..(offset + size as u32) {
+                d.push(self.model_instances[j as usize].to_raw());
+            }
+
+            d
+        };
+
+        self.queue.write_buffer(
+            &self.model_instance_buffer,
+            offset as u64 * INSTANCE_RAW_SIZE as u64,
+            bytemuck::cast_slice(data.as_ref()),
         );
     }
 

@@ -51,17 +51,20 @@ impl ApplicationHandler for App {
         self.time = Some(Instant::now());
         self.state = Some(HeliumState::new(self.window.as_ref().unwrap().clone()));
         // TEST: this is a test for object transformation
-        self.state.as_mut().unwrap().create_instances(
-            0,
-            vec![instance::Instance::new(
-                Vector3 {
-                    x: 1.0,
-                    y: 0.0,
-                    z: 1.0,
-                },
-                Quaternion::one(),
-            )],
-        );
+        self.state.as_mut().unwrap().create_instances(0, {
+            let mut instances = Vec::new();
+            for i in 0..1 {
+                instances.push(instance::Instance {
+                    position: Vector3 {
+                        x: 1.0 * i as f32,
+                        y: 0.0,
+                        z: 0.0,
+                    },
+                    rotation: Quaternion::one(),
+                });
+            }
+            instances
+        });
     }
 
     fn window_event(
@@ -85,23 +88,32 @@ impl ApplicationHandler for App {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Some(helium_state) = self.state.as_mut() {
-                        helium_state.update_instance(
-                            0,
-                            instance::Instance {
-                                position: Vector3 {
-                                    x: f32::cos(
-                                        (Instant::now() - *self.time.as_ref().unwrap())
-                                            .as_secs_f32(),
-                                    ),
-                                    y: 0.0,
-                                    z: f32::sin(
-                                        (Instant::now() - *self.time.as_ref().unwrap())
-                                            .as_secs_f32(),
-                                    ),
-                                },
-                                rotation: Quaternion::one(),
-                            },
-                        );
+                        helium_state.update_instances(0, {
+                            let mut instances = Vec::new();
+
+                            for i in -5..=5 {
+                                instances.push(instance::Instance {
+                                    position: Vector3 {
+                                        x: 5.0 * i as f32,
+                                        y: 1.0
+                                            * f32::sin(
+                                                (Instant::now() - *self.time.as_ref().unwrap())
+                                                    .as_secs_f32()
+                                                    + i as f32,
+                                            ),
+                                        z: 1.0
+                                            * f32::cos(
+                                                (Instant::now() - *self.time.as_ref().unwrap())
+                                                    .as_secs_f32()
+                                                    - i as f32,
+                                            ),
+                                    },
+                                    rotation: Quaternion::one(),
+                                })
+                            }
+
+                            instances
+                        });
                         helium_state.update();
                         helium_state.render().unwrap();
                     }
