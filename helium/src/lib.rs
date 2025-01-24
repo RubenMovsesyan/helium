@@ -117,10 +117,28 @@ impl HeliumManager {
         entity
     }
 
+    /// Querys the ECS for the component type specified and gives the corresponding information
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the ECS to query for
+    ///
+    /// # Returns
+    ///
+    /// A `Ref` to the `HashMap` of the specified `ComponentType`
     pub fn query<ComponentType: 'static>(&mut self) -> Ref<'_, HashMap<Entity, ComponentType>> {
         self.ecs_instance.query::<ComponentType>()
     }
 
+    /// Querys the ECS for the component type specified and gives the corresponding information
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the ECS to query for
+    ///
+    /// # Returns
+    ///
+    /// A `RefMut` to the `HashMap` of the specified `ComponentType`
     pub fn query_mut<ComponentType: 'static>(
         &mut self,
     ) -> RefMut<'_, HashMap<Entity, ComponentType>> {
