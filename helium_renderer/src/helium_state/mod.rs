@@ -1,13 +1,11 @@
 // std
-use std::{borrow::Borrow, iter::once, path::Path, sync::Arc};
-
-use cgmath::{One, Quaternion, Vector3, Zero};
+use std::{iter::once, path::Path, sync::Arc};
 // Async
 use smol::block_on;
 
 // wgpu imports
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt, RenderEncoder},
+    util::{BufferInitDescriptor, DeviceExt},
     Adapter, Backends, Buffer, BufferUsages, Color, CommandEncoderDescriptor, Device,
     DeviceDescriptor, Features, Instance, InstanceDescriptor, Limits, LoadOp, Operations,
     PowerPreference, PresentMode, Queue, RenderPassColorAttachment,
@@ -68,6 +66,14 @@ pub struct HeliumState {
 
 impl HeliumState {
     // Set the instances for a particular object in the state
+    pub fn get_device(&self) -> &Device {
+        &self.device
+    }
+
+    pub fn get_queue(&self) -> &Queue {
+        &self.queue
+    }
+
     pub fn create_instances(
         &mut self,
         object_index: usize,
@@ -108,10 +114,6 @@ impl HeliumState {
     pub fn update_instance(&mut self, instance_index: usize, instance: instance::Instance) {
         self.model_instances[instance_index] = instance;
 
-        use std::mem;
-        // TODO: Make this into a const
-        // let offset = mem::size_of::<instance::InstanceRaw>();
-
         let data = self.model_instances[instance_index].to_raw();
         self.queue.write_buffer(
             &self.model_instance_buffer,
@@ -135,6 +137,14 @@ impl HeliumState {
         }
 
         let offset = self.models[object_index].get_instances().start;
+
+        // If the object is mapped to the default instance of the world origin then
+        // create new instances as to not mess with the default instance
+        if offset == 0 {
+            self.create_instances(object_index, instances);
+            return;
+        }
+
         let size = instances.len();
 
         for i in (0..size).rev() {
@@ -160,8 +170,16 @@ impl HeliumState {
         );
     }
 
-    // Creates an object and adds it to the scene
-    // and returns the index of the object in the renderer
+    /// Creates an object and adds it to the scene
+    ///
+    /// # Arguments
+    ///
+    /// * `model_path` - Filepath to the model
+    /// * `instances` - A vector of instaces with transformation data
+    ///
+    /// # Returns
+    ///
+    /// A `usize` index to the objects index in the renderers object directory
     pub fn create_object<P>(&mut self, model_path: P, instances: Vec<instance::Instance>) -> usize
     where
         P: AsRef<Path>,

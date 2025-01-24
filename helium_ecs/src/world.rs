@@ -63,6 +63,21 @@ impl World {
             .push(Box::new(RefCell::new(new_component_map)));
     }
 
+    // pub fn get_component_of_entity<ComponentType: 'static>(
+    //     &self,
+    //     entity: Entity,
+    // ) -> Option<&ComponentType> {
+    //     for component_map in self.component_maps.iter() {
+    //         if let Some(component_map) = component_map
+    //             .as_any()
+    //             .downcast_ref::<RefCell<HashMap<Entity, ComponentType>>>()
+    //         {
+    //             return component_map.borrow().get(&entity);
+    //         }
+    //     }
+    //     None
+    // }
+
     pub fn borrow_component_map<ComponentType: 'static>(
         &self,
     ) -> Option<Ref<HashMap<Entity, ComponentType>>> {

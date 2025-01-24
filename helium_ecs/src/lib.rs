@@ -1,21 +1,21 @@
 use std::{
     cell::{Ref, RefMut},
-    collections::{hash_map::Iter, HashMap},
+    collections::HashMap,
 };
 
-use entity::Entity;
-use log::info;
+pub use entity::Entity;
+use log::*;
 use world::World;
 
 mod component;
 mod entity;
 mod world;
 
-pub struct ECS {
+pub struct HeliumECS {
     world: World,
 }
 
-impl ECS {
+impl HeliumECS {
     pub fn new() -> Self {
         Self {
             world: World::new(),
@@ -62,7 +62,7 @@ mod tests {
         struct Name(String);
         struct Player;
 
-        let mut ecs = ECS::new();
+        let mut ecs = HeliumECS::new();
 
         let ralph = ecs.new_entity();
         let betty = ecs.new_entity();

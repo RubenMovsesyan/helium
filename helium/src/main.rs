@@ -1,39 +1,32 @@
 use helium::*;
 
-fn add_model(state: &mut HeliumState) {
-    state.create_object("./assets/suzzane.obj", {
-        let mut instances = Vec::new();
-        for i in 0..1 {
-            instances.push(Instance {
-                position: Vector3 {
-                    x: 1.0 * i as f32,
-                    y: 0.0,
-                    z: 0.0,
-                },
-                rotation: Quaternion::one(),
-            });
-        }
-        instances
-    });
+fn add_model(manager: &mut HeliumManager) {
+    manager.create_object(
+        Model3d::from_obj("./assets/suzzane.obj".to_string()),
+        Transform3d::default(),
+    );
 }
 
-fn update_model(state: &mut HeliumState, time: Instant) {
-    state.update_instances(0, {
-        let mut instances = Vec::new();
+fn update_model(manager: &mut HeliumManager) {
+    let models = manager.query::<Model3d>();
+    let mut entity = 0;
 
-        for i in -5..=5 {
-            instances.push(Instance {
-                position: Vector3 {
-                    x: 5.0 * i as f32,
-                    y: 1.0 * f32::sin((Instant::now() - time).as_secs_f32() + i as f32),
-                    z: 1.0 * f32::cos((Instant::now() - time).as_secs_f32() - i as f32),
-                },
-                rotation: Quaternion::one(),
-            })
-        }
+    while !models.contains_key(&entity) {
+        entity += 1;
+    }
 
-        instances
-    });
+    drop(models);
+    manager.update_transform(
+        entity,
+        Transform3d {
+            position: Vector3 {
+                x: 0.0,
+                y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
+                z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
+            },
+            rotation: Quaternion::one(),
+        },
+    );
 }
 
 fn main() {

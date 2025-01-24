@@ -7,5 +7,8 @@ edition = "2021"
 cgmath = "0.18.0"
 helium_ecs = { version = "0.1.0", path = "../helium_ecs" }
 helium_renderer = { path = "../helium_renderer" }
+log = "0.4.25"
 pretty_env_logger = "0.5.0"
 smol = "2.0.2"
+wgpu = "24.0.1"
+winit = { version = "0.30.8", features = ["rwh_05"] }
