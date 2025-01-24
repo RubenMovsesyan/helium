@@ -17,18 +17,18 @@ use super::resources::OPENGL_TO_WGPU_MATIX;
 
 pub struct Camera {
     // Position and direction values
-    eye: Point3<f32>,
-    target: Point3<f32>,
-    up: Vector3<f32>,
+    pub eye: Point3<f32>,
+    pub target: Vector3<f32>,
+    pub up: Vector3<f32>,
 
     // Camera view values
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub znear: f32,
+    pub zfar: f32,
 
     // wgpu vars
-    camera_uniform: CameraUniform,
+    pub camera_uniform: CameraUniform,
     buffer: Buffer,
     layout: BindGroupLayout,
     bind_group: BindGroup,
@@ -43,10 +43,26 @@ impl Camera {
         &self.buffer
     }
 
+    pub fn get_camera_layout(device: &Device) -> BindGroupLayout {
+        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Camera Bind Group Layout"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+    }
+
     pub fn new(
         device: &Device,
         eye: Point3<f32>,
-        target: Point3<f32>,
+        target: Vector3<f32>,
         up: Vector3<f32>,
         aspect: f32,
         fovy: f32,
@@ -119,27 +135,20 @@ impl Camera {
             ));
     }
 
-    fn build_view_projection_matrix_parts(
+    pub fn build_view_projection_matrix_parts(
         eye: Point3<f32>,
-        target: Point3<f32>,
+        target: Vector3<f32>,
         up: Vector3<f32>,
         aspect: f32,
         fovy: f32,
         znear: f32,
         zfar: f32,
     ) -> Matrix4<f32> {
-        let view = Matrix4::look_at_rh(eye, target, up);
+        let view = Matrix4::look_at_rh(eye, eye + target, up);
         let proj = perspective(Deg(fovy), aspect, znear, zfar);
 
         OPENGL_TO_WGPU_MATIX * proj * view
     }
-
-    // fn build_view_projection_matrix(&self) -> Matrix4<f32> {
-    //     let view = Matrix4::look_at_rh(self.eye, self.target, self.up);
-    //     let proj = perspective(Deg(self.fovy), self.aspect, self.znear, self.zfar);
-
-    //     OPENGL_TO_WGPU_MATIX * proj * view
-    // }
 
     pub fn get_layout(&self) -> &BindGroupLayout {
         &self.layout
@@ -158,10 +167,6 @@ impl CameraUniform {
             view_proj: Matrix4::identity().into(),
         }
     }
-
-    // pub fn update_view_proj(&mut self, camera: &Camera) {
-    //     self.view_proj = camera.build_view_projection_matrix().into();
-    // }
 
     pub fn update_view_proj_with_matrix(&mut self, matrix: Matrix4<f32>) {
         self.view_proj = matrix.into();
@@ -235,29 +240,29 @@ impl CameraController {
         }
     }
 
-    pub fn update_camera(&self, camera: &mut Camera) {
-        let forward = camera.target - camera.eye;
-        let forward_norm = forward.normalize();
-        let forward_mag = forward.magnitude();
+    // pub fn update_camera(&self, camera: &mut Camera) {
+    // let forward = camera.target - camera.eye;
+    // let forward_norm = forward.normalize();
+    // let forward_mag = forward.magnitude();
 
-        if self.is_forward_pressed && forward_mag > self.speed {
-            camera.eye += forward_norm * self.speed;
-        }
+    // if self.is_forward_pressed && forward_mag > self.speed {
+    //     camera.eye += forward_norm * self.speed;
+    // }
 
-        if self.is_backward_pressed {
-            camera.eye -= forward_norm * self.speed;
-        }
+    // if self.is_backward_pressed {
+    //     camera.eye -= forward_norm * self.speed;
+    // }
 
-        let right = forward_norm.cross(camera.up);
-        // let forward = camera.target - camera.eye;
-        // let forward_mag = forward.magnitude();
+    // let right = forward_norm.cross(camera.up);
+    // // let forward = camera.target - camera.eye;
+    // // let forward_mag = forward.magnitude();
 
-        if self.is_left_pressed {
-            camera.eye -= right * self.speed;
-        }
+    // if self.is_left_pressed {
+    //     camera.eye -= right * self.speed;
+    // }
 
-        if self.is_right_pressed {
-            camera.eye += right * self.speed;
-        }
-    }
+    // if self.is_right_pressed {
+    //     camera.eye += right * self.speed;
+    // }
+    // }
 }

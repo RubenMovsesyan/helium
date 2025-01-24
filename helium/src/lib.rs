@@ -1,5 +1,5 @@
 pub use cgmath::{One, Quaternion, Vector3, Zero};
-pub use helium_compatibility::{Model3d, Transform3d};
+pub use helium_compatibility::{Camera3d, Model3d, Transform3d};
 pub use helium_ecs::Entity;
 pub use helium_ecs::HeliumECS;
 pub use helium_renderer::instance::Instance;
@@ -12,9 +12,11 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 pub use std::time::Instant;
+pub use wgpu::SurfaceConfiguration;
+pub use winit::event::{ElementState, KeyEvent, WindowEvent};
+pub use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
@@ -23,11 +25,17 @@ mod helium_compatibility;
 
 pub type StartupFunction = fn(&mut HeliumManager);
 pub type UpdateFunction = fn(&mut HeliumManager);
+pub type InputFunction = fn(&mut HeliumManager, &WindowEvent);
 
 pub struct HeliumManager {
     ecs_instance: HeliumECS,
     renderer_instance: Arc<Mutex<HeliumRenderer>>,
+
+    // For easy access to the camera
+    pub camera_id: Option<Entity>,
+
     pub time: Instant,
+    pub delta_time: Instant,
 }
 
 impl HeliumManager {
@@ -35,8 +43,77 @@ impl HeliumManager {
         Self {
             ecs_instance: ecs,
             renderer_instance: renderer.clone(),
+            camera_id: None,
             time: Instant::now(),
+            delta_time: Instant::now(),
         }
+    }
+
+    pub fn get_render_config(&self) -> SurfaceConfiguration {
+        self.renderer_instance.lock().unwrap().state.config.clone()
+    }
+
+    /// Creates a 3d camera to view the scene with. The rendering will be skipped if
+    /// No cameara is present
+    ///
+    /// # Arguments
+    ///
+    /// * `camera` - The `Camera3d` that will be added to the scene
+    ///
+    /// # Returns
+    ///
+    /// The entity id
+    pub fn create_camera(&mut self, camera: Camera3d) -> Entity {
+        self.renderer_instance.lock().unwrap().state.add_camera(
+            camera.eye,
+            camera.target,
+            camera.up,
+            camera.aspect,
+            camera.fovy,
+            camera.znear,
+            camera.zfar,
+        );
+
+        let camera_entity = self.ecs_instance.new_entity();
+        self.ecs_instance.add_component(camera_entity, camera);
+        self.camera_id = Some(camera_entity);
+        camera_entity
+    }
+
+    /// Updates the camera based on the new camera provided
+    ///
+    /// # Arguments
+    ///
+    /// * `camera` - the new camera
+    pub fn update_camera(&mut self, camera: Camera3d) {
+        self.renderer_instance.lock().unwrap().state.update_camera(
+            camera.eye,
+            camera.target,
+            camera.up,
+            camera.aspect,
+            camera.fovy,
+            camera.znear,
+            camera.zfar,
+        );
+        self.ecs_instance
+            .add_component(*self.camera_id.as_ref().unwrap(), camera);
+    }
+
+    pub fn move_camera_to_render(&mut self) {
+        let camera_id = self.camera_id.as_ref().unwrap().clone();
+        let cameras = self.query::<Camera3d>();
+        let camera = cameras.get(&camera_id).unwrap().clone();
+        drop(cameras);
+
+        self.renderer_instance.lock().unwrap().state.update_camera(
+            camera.eye,
+            camera.target,
+            camera.up,
+            camera.aspect,
+            camera.fovy,
+            camera.znear,
+            camera.zfar,
+        );
     }
 
     /// Creates a 3d model component with the required transform component
@@ -153,8 +230,12 @@ pub struct Helium {
     startup_functions: Arc<Mutex<Vec<StartupFunction>>>,
     /// These functions will run whenever and update is requested
     update_functions: Arc<Mutex<Vec<UpdateFunction>>>,
+    /// These functions will run whenever the input is called
+    input_functions: Arc<Mutex<Vec<InputFunction>>>,
     /// Winit instance
     window: Option<Arc<Window>>,
+    /// Event handling for the window
+    event_handler: Arc<Mutex<Option<WindowEvent>>>,
     /// Renderer for the window
     renderer: Option<Arc<Mutex<HeliumRenderer>>>,
     /// Thread that runs continuously to call update functions from the user
@@ -171,13 +252,24 @@ impl Helium {
             event_loop: Some(event_loop),
             startup_functions: Arc::new(Mutex::new(Vec::new())),
             update_functions: Arc::new(Mutex::new(Vec::new())),
+            input_functions: Arc::new(Mutex::new(Vec::new())),
             window: None,
+            event_handler: Arc::new(Mutex::new(None)),
             renderer: None,
             update_thread: None,
             event_loop_working: Arc::new(Mutex::new(false)),
         }
     }
 
+    /// Adds a startup function to be executed when the engine starts
+    ///
+    /// # Arguments
+    ///
+    /// * `startup_function` - Function pointer to run at startup
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to self
     pub fn add_startup(&mut self, startup_function: StartupFunction) -> &mut Self {
         self.startup_functions
             .lock()
@@ -187,6 +279,33 @@ impl Helium {
         self
     }
 
+    /// Adds an input function to be executed when the input handler is called
+    ///
+    /// # Arguments
+    ///
+    /// * `input_function` - Function pointer to run on input
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to self
+    pub fn add_input(&mut self, input_function: InputFunction) -> &mut Self {
+        self.input_functions
+            .lock()
+            .as_mut()
+            .unwrap()
+            .push(input_function);
+        self
+    }
+
+    /// Adds an update function to be executed while the engine is running
+    ///
+    /// # Arguments
+    ///
+    /// * `update_function` - Function pointer to run continuously
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to self
     pub fn add_update(&mut self, update_function: UpdateFunction) -> &mut Self {
         self.update_functions
             .lock()
@@ -220,7 +339,9 @@ impl ApplicationHandler for Helium {
         // This is the main update loop of the game
         let startup_functions_clone = self.startup_functions.clone();
         let update_functions_clone = self.update_functions.clone();
+        let input_functions_clone = self.input_functions.clone();
         let renderer_clone = self.renderer.as_ref().unwrap().clone();
+        let event_handler_clone = self.event_handler.clone();
 
         // For making sure this thread ends as soon as the main thread ends
         let event_loop_working_clone = self.event_loop_working.clone();
@@ -238,6 +359,15 @@ impl ApplicationHandler for Helium {
                 for update_function in update_functions_clone.lock().as_ref().unwrap().iter() {
                     update_function(&mut manager);
                 }
+
+                // Handle any necessary window events here
+                if let Some(event) = event_handler_clone.lock().unwrap().take() {
+                    for input_function in input_functions_clone.lock().unwrap().iter() {
+                        input_function(&mut manager, &event);
+                    }
+                }
+                manager.delta_time = Instant::now();
+
                 if *event_loop_working_clone.lock().unwrap() == false {
                     break;
                 }
@@ -252,19 +382,19 @@ impl ApplicationHandler for Helium {
         event: winit::event::WindowEvent,
     ) {
         if self.window.as_ref().unwrap().id() == window_id {
-            if self
-                .renderer
-                .as_ref()
-                .unwrap()
-                .clone()
-                .lock()
-                .as_mut()
-                .unwrap()
-                .state
-                .input(&event)
-            {
-                return;
-            }
+            // if self
+            //     .renderer
+            //     .as_ref()
+            //     .unwrap()
+            //     .clone()
+            //     .lock()
+            //     .as_mut()
+            //     .unwrap()
+            //     .state
+            //     .input(&event)
+            // {
+            //     return;
+            // }
 
             match event {
                 WindowEvent::CloseRequested => {
@@ -276,7 +406,7 @@ impl ApplicationHandler for Helium {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
-                        renderer.update();
+                        // renderer.update();
                         renderer.render();
                     }
                 }
@@ -287,6 +417,8 @@ impl ApplicationHandler for Helium {
                 }
                 _ => {}
             }
+
+            self.event_handler.lock().unwrap().replace(event);
         }
     }
 

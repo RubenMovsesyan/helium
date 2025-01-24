@@ -13,6 +13,7 @@ pub mod helium_state;
 // Helium rendering imports
 pub use helium_state::model::instance;
 pub use helium_state::model::Model;
+pub use helium_state::Camera;
 pub use helium_state::HeliumState;
 
 pub type StartupFunction = fn(&mut HeliumState);

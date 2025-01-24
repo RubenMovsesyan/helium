@@ -1,4 +1,6 @@
 // std
+use cgmath::Point3;
+use cgmath::Vector3;
 use std::{iter::once, path::Path, sync::Arc};
 // Async
 use smol::block_on;
@@ -21,13 +23,13 @@ use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
 use log::*;
 
 // State handling modules
-mod camera;
+pub mod camera;
 mod helium_texture;
 pub mod model;
 mod resources;
 
 // module imports
-use camera::{Camera, CameraController};
+pub use camera::Camera;
 use helium_texture::HeliumTexture;
 use model::{
     instance::INSTANCE_RAW_SIZE, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline,
@@ -40,13 +42,14 @@ pub struct HeliumState {
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
-    config: SurfaceConfiguration,
+    pub config: SurfaceConfiguration,
 
     // wgpu rendering varables
 
     // Camera
     camera: Camera,
-    camera_controller: CameraController,
+    camera_active: bool,
+    // camera_controller: CameraController,
 
     // Depth texture for rendering the correct faces of a mesh
     depth_texture: HeliumTexture,
@@ -193,6 +196,58 @@ impl HeliumState {
         index
     }
 
+    /// Function to add a camera to the scene to be rendererd
+    pub fn add_camera(
+        &mut self,
+        eye: Point3<f32>,
+        target: Vector3<f32>,
+        up: Vector3<f32>,
+        aspect: f32,
+        fovy: f32,
+        znear: f32,
+        zfar: f32,
+    ) {
+        self.camera = Camera::new(&self.device, eye, target, up, aspect, fovy, znear, zfar);
+        self.queue.write_buffer(
+            &self.camera.get_buffer(),
+            0,
+            bytemuck::cast_slice(&[*self.camera.get_uniform()]),
+        );
+        self.camera_active = true;
+    }
+
+    pub fn update_camera(
+        &mut self,
+        eye: Point3<f32>,
+        target: Vector3<f32>,
+        up: Vector3<f32>,
+        aspect: f32,
+        fovy: f32,
+        znear: f32,
+        zfar: f32,
+    ) {
+        self.camera.eye = eye;
+        self.camera.target = target;
+        self.camera.up = up;
+        self.camera.aspect = aspect;
+        self.camera.fovy = fovy;
+        self.camera.znear = znear;
+        self.camera.zfar = zfar;
+
+        self.camera.update_view_proj();
+
+        self.queue.write_buffer(
+            &self.camera.get_buffer(),
+            0,
+            bytemuck::cast_slice(&[*self.camera.get_uniform()]),
+        );
+    }
+
+    /// Function to remove the camera from the scene to stop rendering
+    pub fn remove_camera(&mut self) {
+        self.camera_active = false;
+    }
+
     pub fn new(window: Arc<Window>) -> Self {
         let instance = Self::create_gpu_instance();
         let surface = instance.create_surface(window.clone()).unwrap();
@@ -214,7 +269,7 @@ impl HeliumState {
             100.0,
         );
 
-        let camera_controller = CameraController::new(0.2);
+        // let camera_controller = CameraController::new(0.2);
 
         let depth_texture = HeliumTexture::create_depth_texture(&device, &config);
 
@@ -230,7 +285,10 @@ impl HeliumState {
 
         // TODO: Fix this ugly generic
         let render_pipeline = HeliumRenderPipeline::construct_from_layouts::<ModelVertex, &str>(
-            vec![&HeliumTexture::get_layout(&device), camera.get_layout()],
+            vec![
+                &HeliumTexture::get_layout(&device),
+                &Camera::get_camera_layout(&device),
+            ],
             &device,
             &config,
             String::from("Model"),
@@ -247,7 +305,7 @@ impl HeliumState {
             queue,
             config,
             camera,
-            camera_controller,
+            camera_active: false,
             depth_texture,
             render_pipeline,
             models: obj_models,
@@ -322,18 +380,19 @@ impl HeliumState {
 
     // Run any state updates here
     pub fn update(&mut self) {
-        self.camera_controller.update_camera(&mut self.camera);
-        self.camera.update_view_proj();
-        self.queue.write_buffer(
-            &self.camera.get_buffer(),
-            0,
-            bytemuck::cast_slice(&[*self.camera.get_uniform()]),
-        );
+        // self.camera_controller.update_camera(&mut self.camera);
+        // self.camera.update_view_proj();
+        // self.queue.write_buffer(
+        //     &self.camera.get_buffer(),
+        //     0,
+        //     bytemuck::cast_slice(&[*self.camera.get_uniform()]),
+        // );
     }
 
     // Call this to handle input
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        self.camera_controller.process_events(event)
+        // self.camera_controller.process_events(event)
+        false
     }
 
     // Call this when requesting redraw
@@ -373,21 +432,24 @@ impl HeliumState {
                 timestamp_writes: None,
             });
 
-            // Set the render pipeline to the model render pipeline
-            render_pass.set_pipeline(self.render_pipeline.as_ref());
-            // Set this to the current held instance buffer that stores all the instance data for each mesh
-            render_pass.set_vertex_buffer(1, self.model_instance_buffer.slice(..));
+            // Only render the scene if the camera is active
+            if self.camera_active {
+                // Set the render pipeline to the model render pipeline
+                render_pass.set_pipeline(self.render_pipeline.as_ref());
+                // Set this to the current held instance buffer that stores all the instance data for each mesh
+                render_pass.set_vertex_buffer(1, self.model_instance_buffer.slice(..));
 
-            // Sets each of the bind groups
-            use model::draw_model::DrawModel;
-            for model in self.models.iter() {
-                // Render each mesh in the model with its corresponding material
-                for mesh in model.get_meshes().iter() {
-                    render_pass.draw_mesh(
-                        mesh,
-                        &model.get_materials()[*(mesh.get_material_index().unwrap())],
-                        self.camera.get_bind_group(),
-                    );
+                // Sets each of the bind groups
+                use model::draw_model::DrawModel;
+                for model in self.models.iter() {
+                    // Render each mesh in the model with its corresponding material
+                    for mesh in model.get_meshes().iter() {
+                        render_pass.draw_mesh(
+                            mesh,
+                            &model.get_materials()[*(mesh.get_material_index().unwrap())],
+                            self.camera.get_bind_group(),
+                        );
+                    }
                 }
             }
         }
