@@ -1,5 +1,6 @@
 pub use cgmath::{One, Quaternion, Vector3, Zero};
-pub use helium_compatibility::{Camera3d, Model3d, Transform3d};
+pub use helium_compatibility::CameraController;
+pub use helium_compatibility::{Camera3d, Label, Model3d, Transform3d};
 pub use helium_ecs::Entity;
 pub use helium_ecs::HeliumECS;
 pub use helium_renderer::instance::Instance;
@@ -8,11 +9,13 @@ pub use helium_renderer::HeliumState;
 use log::*;
 pub use std::cell::{Ref, RefMut};
 pub use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 pub use std::time::Instant;
 pub use wgpu::SurfaceConfiguration;
+pub use winit::event::{DeviceEvent, DeviceId};
 pub use winit::event::{ElementState, KeyEvent, WindowEvent};
 pub use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::{
@@ -23,9 +26,11 @@ use winit::{
 
 mod helium_compatibility;
 
+pub type InputEvent = DeviceEvent;
+
 pub type StartupFunction = fn(&mut HeliumManager);
 pub type UpdateFunction = fn(&mut HeliumManager);
-pub type InputFunction = fn(&mut HeliumManager, &WindowEvent);
+pub type InputFunction = fn(&mut HeliumManager, &InputEvent);
 
 pub struct HeliumManager {
     ecs_instance: HeliumECS,
@@ -76,6 +81,16 @@ impl HeliumManager {
 
         let camera_entity = self.ecs_instance.new_entity();
         self.ecs_instance.add_component(camera_entity, camera);
+        self.ecs_instance.add_component(
+            camera_entity,
+            CameraController {
+                forward: false,
+                backward: false,
+                left: false,
+                right: false,
+                delta: (0.0, 0.0),
+            },
+        );
         self.camera_id = Some(camera_entity);
         camera_entity
     }
@@ -99,11 +114,11 @@ impl HeliumManager {
             .add_component(*self.camera_id.as_ref().unwrap(), camera);
     }
 
-    pub fn move_camera_to_render(&mut self) {
-        let camera_id = self.camera_id.as_ref().unwrap().clone();
-        let cameras = self.query::<Camera3d>();
-        let camera = cameras.get(&camera_id).unwrap().clone();
-        drop(cameras);
+    /// Used internally to update the camera position
+    pub fn move_camera_to_render(&self, camera: &Camera3d) {
+        // let camera_id = self.camera_id.as_ref().unwrap().clone();
+        // let cameras = self.query::<Camera3d>();
+        // let camera = cameras.get(&camera_id).unwrap().clone();
 
         self.renderer_instance.lock().unwrap().state.update_camera(
             camera.eye,
@@ -175,6 +190,25 @@ impl HeliumManager {
         entity
     }
 
+    pub fn move_transform_to_renderer(&self, entity: Entity) {
+        let object_index = self
+            .ecs_instance
+            .query::<Model3d>()
+            .get(&entity)
+            .unwrap()
+            .get_renderer_index()
+            .unwrap()
+            .clone();
+        let transforms = self.ecs_instance.query::<Transform3d>();
+        if let Some(transform) = transforms.get(&entity) {
+            self.renderer_instance
+                .lock()
+                .unwrap()
+                .state
+                .update_instances(object_index, vec![transform.clone().into()]);
+        }
+    }
+
     /// Adds a component to the specified entity
     ///
     /// # Arguments
@@ -203,7 +237,7 @@ impl HeliumManager {
     /// # Returns
     ///
     /// A `Ref` to the `HashMap` of the specified `ComponentType`
-    pub fn query<ComponentType: 'static>(&mut self) -> Ref<'_, HashMap<Entity, ComponentType>> {
+    pub fn query<ComponentType: 'static>(&self) -> Ref<'_, HashMap<Entity, ComponentType>> {
         self.ecs_instance.query::<ComponentType>()
     }
 
@@ -216,9 +250,7 @@ impl HeliumManager {
     /// # Returns
     ///
     /// A `RefMut` to the `HashMap` of the specified `ComponentType`
-    pub fn query_mut<ComponentType: 'static>(
-        &mut self,
-    ) -> RefMut<'_, HashMap<Entity, ComponentType>> {
+    pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
         self.ecs_instance.query_mut::<ComponentType>()
     }
 }
@@ -235,7 +267,7 @@ pub struct Helium {
     /// Winit instance
     window: Option<Arc<Window>>,
     /// Event handling for the window
-    event_handler: Arc<Mutex<Option<WindowEvent>>>,
+    event_handler: Arc<Mutex<VecDeque<InputEvent>>>,
     /// Renderer for the window
     renderer: Option<Arc<Mutex<HeliumRenderer>>>,
     /// Thread that runs continuously to call update functions from the user
@@ -254,7 +286,7 @@ impl Helium {
             update_functions: Arc::new(Mutex::new(Vec::new())),
             input_functions: Arc::new(Mutex::new(Vec::new())),
             window: None,
-            event_handler: Arc::new(Mutex::new(None)),
+            event_handler: Arc::new(Mutex::new(VecDeque::new())),
             renderer: None,
             update_thread: None,
             event_loop_working: Arc::new(Mutex::new(false)),
@@ -345,27 +377,60 @@ impl ApplicationHandler for Helium {
 
         // For making sure this thread ends as soon as the main thread ends
         let event_loop_working_clone = self.event_loop_working.clone();
+
+        // This is the continuously running update thread
         self.update_thread = Some(thread::spawn(move || {
             let new_ecs = HeliumECS::new();
             let mut manager = HeliumManager::new(new_ecs, renderer_clone);
             info!("Starting Helium ECS");
 
+            // Run all the starup functions when starting the update thread
             for startup_function in startup_functions_clone.lock().as_ref().unwrap().iter() {
                 startup_function(&mut manager);
             }
             info!("Starup functions complete, Running Updates");
 
             loop {
+                // Handle all updates
                 for update_function in update_functions_clone.lock().as_ref().unwrap().iter() {
                     update_function(&mut manager);
                 }
 
                 // Handle any necessary window events here
-                if let Some(event) = event_handler_clone.lock().unwrap().take() {
+                while let Some(event) = event_handler_clone.lock().unwrap().pop_front() {
                     for input_function in input_functions_clone.lock().unwrap().iter() {
                         input_function(&mut manager, &event);
                     }
                 }
+
+                // HACK: handle the camera update here
+                // This can probably be done in a better place
+                let mut camera_controllers = manager.query_mut::<CameraController>();
+                let mut cameras = manager.query_mut::<Camera3d>();
+
+                let cam_and_controllers = cameras
+                    .iter_mut()
+                    .zip(camera_controllers.iter_mut())
+                    .filter_map(|(camera, controller)| Some((camera.1, controller.1)));
+
+                for (camera, controller) in cam_and_controllers {
+                    camera.update_camera(
+                        controller.forward,
+                        controller.backward,
+                        controller.left,
+                        controller.right,
+                        false,
+                        false,
+                        &manager.delta_time,
+                    );
+                    camera.add_yaw(-controller.delta.0);
+                    camera.add_pitch(-controller.delta.1);
+                    controller.delta = (0.0, 0.0);
+                    manager.move_camera_to_render(camera);
+                }
+
+                drop(cameras);
+                drop(camera_controllers);
                 manager.delta_time = Instant::now();
 
                 if *event_loop_working_clone.lock().unwrap() == false {
@@ -382,20 +447,6 @@ impl ApplicationHandler for Helium {
         event: winit::event::WindowEvent,
     ) {
         if self.window.as_ref().unwrap().id() == window_id {
-            // if self
-            //     .renderer
-            //     .as_ref()
-            //     .unwrap()
-            //     .clone()
-            //     .lock()
-            //     .as_mut()
-            //     .unwrap()
-            //     .state
-            //     .input(&event)
-            // {
-            //     return;
-            // }
-
             match event {
                 WindowEvent::CloseRequested => {
                     info!("Window close requested; stopping");
@@ -406,7 +457,6 @@ impl ApplicationHandler for Helium {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
-                        // renderer.update();
                         renderer.render();
                     }
                 }
@@ -418,8 +468,18 @@ impl ApplicationHandler for Helium {
                 _ => {}
             }
 
-            self.event_handler.lock().unwrap().replace(event);
+            // Send the event to the helium event handlers
+            // self.event_handler.lock().unwrap().push_back(event);
         }
+    }
+
+    fn device_event(
+        &mut self,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+        device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        self.event_handler.lock().unwrap().push_back(event);
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

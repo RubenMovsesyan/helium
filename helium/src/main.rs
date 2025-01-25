@@ -1,37 +1,65 @@
+use cgmath::{InnerSpace, Rad, Rotation3};
 use helium::*;
 use log::info;
 
 fn add_model(manager: &mut HeliumManager) {
-    manager.create_object(
+    let suzzane = manager.create_object(
         Model3d::from_obj("./assets/suzzane.obj".to_string()),
         Transform3d::default(),
     );
+
+    manager.add_component(suzzane, Label("Suzzane".to_string()));
+
+    let cube = manager.create_object(
+        Model3d::from_obj("./assets/cube.obj".to_string()),
+        Transform3d {
+            position: Vector3 {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            rotation: Quaternion::one(),
+        },
+    );
+
+    manager.add_component(cube, Label("Cube".to_string()));
 }
 
 fn add_camera(manager: &mut HeliumManager) {
     let config = manager.get_render_config();
-    manager.create_camera(Camera3d {
-        eye: (5.0, 5.0, 5.0).into(),
-        target: (-5.0, -5.0, -5.0).into(),
-        up: Vector3::unit_y(),
-        aspect: config.width as f32 / config.height as f32,
-        fovy: 45.0,
-        znear: 0.1,
-        zfar: 100.0,
-    });
+    manager.create_camera(Camera3d::new(
+        (5.0, 5.0, 5.0).into(),
+        (-5.0, -5.0, -5.0).into(),
+        Vector3::unit_y(),
+        config.width as f32 / config.height as f32,
+        45.0,
+        0.1,
+        100.0,
+    ));
 }
 
 fn update_model(manager: &mut HeliumManager) {
     let models = manager.query::<Model3d>();
-    let mut entity = 0;
+    let labels = manager.query::<Label>();
 
-    while !models.contains_key(&entity) {
-        entity += 1;
+    let mut suzzane = None;
+    let mut cube = None;
+
+    for (entity, _) in models.iter() {
+        if let Some(label) = labels.get(&entity) {
+            if label == &Label("Suzzane".to_string()) {
+                suzzane = Some(*entity);
+            } else if label == &Label("Cube".to_string()) {
+                cube = Some(*entity);
+            }
+        }
     }
 
     drop(models);
+    drop(labels);
+
     manager.update_transform(
-        entity,
+        suzzane.unwrap(),
         Transform3d {
             position: Vector3 {
                 x: 0.0,
@@ -41,59 +69,52 @@ fn update_model(manager: &mut HeliumManager) {
             rotation: Quaternion::one(),
         },
     );
+
+    manager.update_transform(
+        cube.unwrap(),
+        Transform3d {
+            position: Vector3 {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            rotation: Quaternion::from_axis_angle(
+                Vector3 {
+                    x: 1.0,
+                    y: 1.0,
+                    z: 1.0,
+                }
+                .normalize(),
+                Rad(manager.time.elapsed().as_secs_f32()),
+            ),
+        },
+    );
+    // let models = manager.query::<Model3d>();
+    // let mut entity = 0;
+
+    // while !models.contains_key(&entity) {
+    //     entity += 1;
+    // }
+
+    // drop(models);
+    // manager.update_transform(
+    //     entity,
+    //     Transform3d {
+    //         position: Vector3 {
+    //             x: 0.0,
+    //             y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
+    //             z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
+    //         },
+    //         rotation: Quaternion::one(),
+    //     },
+    // );
 }
 
-// FIX this because the input is tied to the key repeat
-fn process_inputs(manager: &mut HeliumManager, event: &WindowEvent) {
-    match event {
-        WindowEvent::KeyboardInput {
-            event:
-                KeyEvent {
-                    state,
-                    physical_key: PhysicalKey::Code(keycode),
-                    ..
-                },
-            ..
-        } => {
-            let camera_id = manager.camera_id.unwrap();
-            let time = manager.delta_time;
-            let mut cameras = manager.query_mut::<Camera3d>();
+fn process_inputs(manager: &mut HeliumManager, event: &DeviceEvent) {
+    let mut cameras = manager.query_mut::<CameraController>();
 
-            let is_pressed = *state == ElementState::Pressed;
-
-            let mut forward = false;
-            let mut backward = false;
-            let mut left = false;
-            let mut right = false;
-            let mut tl = false;
-            let mut tr = false;
-
-            match keycode {
-                KeyCode::KeyW => {
-                    forward = is_pressed;
-                }
-                KeyCode::KeyS => {
-                    backward = is_pressed;
-                }
-                KeyCode::KeyA => {
-                    left = is_pressed;
-                }
-                KeyCode::KeyD => {
-                    right = is_pressed;
-                }
-                _ => {}
-            }
-
-            cameras
-                .get_mut(&camera_id)
-                .unwrap()
-                .update_camera(forward, backward, left, right, tl, tr, time);
-
-            drop(cameras);
-
-            manager.move_camera_to_render();
-        }
-        _ => {}
+    for (_, camera) in cameras.iter_mut() {
+        camera.process_events(event);
     }
 }
 
