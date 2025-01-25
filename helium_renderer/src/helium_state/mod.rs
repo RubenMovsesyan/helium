@@ -2,6 +2,7 @@
 use cgmath::Point3;
 use cgmath::Vector3;
 use std::{iter::once, path::Path, sync::Arc};
+use wgpu_text::glyph_brush::ab_glyph::FontRef;
 // Async
 use smol::block_on;
 
@@ -14,6 +15,10 @@ use wgpu::{
     RenderPassDepthStencilAttachment, RenderPassDescriptor, RenderPipeline,
     RequestAdapterOptionsBase, StoreOp, Surface, SurfaceCapabilities, SurfaceConfiguration,
     SurfaceError, TextureUsages, TextureViewDescriptor,
+};
+pub use wgpu_text::{
+    glyph_brush::{Section as TextSection, Text},
+    BrushBuilder, TextBrush,
 };
 
 // winit imports
@@ -65,6 +70,12 @@ pub struct HeliumState {
 
     // Instance buffer for all the instances
     model_instance_buffer: Buffer,
+
+    // Brush for the text ui
+    pub brush: TextBrush<FontRef<'static>>,
+
+    // Fps to draw
+    pub fps: String,
 }
 
 impl HeliumState {
@@ -297,7 +308,10 @@ impl HeliumState {
         );
 
         let obj_models = Vec::new();
-        // obj_models.push(Model::from_obj("./assets/suzzane.obj", &device, &queue).unwrap());
+
+        let brush = BrushBuilder::using_font_bytes(include_bytes!("../../../assets/font.ttf"))
+            .unwrap()
+            .build(&device, config.width, config.height, config.format);
 
         Self {
             surface,
@@ -311,6 +325,8 @@ impl HeliumState {
             models: obj_models,
             model_instances,
             model_instance_buffer,
+            brush,
+            fps: String::new(),
         }
     }
 
@@ -408,10 +424,10 @@ impl HeliumState {
                 label: Some("Render Encoder"),
             });
 
-        // Render pass
+        // Scene Render pass
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Render Pass"),
+                label: Some("Scene Render Pass"),
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -452,6 +468,31 @@ impl HeliumState {
                     }
                 }
             }
+        }
+
+        // Overlay render pass
+        {
+            let section = TextSection::default().add_text(Text::new(&self.fps));
+            self.brush
+                .queue(&self.device, &self.queue, [&section])
+                .unwrap();
+
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Overlay Render Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load,
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            self.brush.draw(&mut render_pass);
         }
 
         self.queue.submit(once(encoder.finish()));

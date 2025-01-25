@@ -3,6 +3,7 @@ pub use helium_compatibility::CameraController;
 pub use helium_compatibility::{Camera3d, Label, Model3d, Transform3d};
 pub use helium_ecs::Entity;
 pub use helium_ecs::HeliumECS;
+use helium_renderer::helium_state::{Text, TextSection};
 pub use helium_renderer::instance::Instance;
 pub use helium_renderer::HeliumRenderer;
 pub use helium_renderer::HeliumState;
@@ -23,7 +24,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
-
 mod helium_compatibility;
 
 pub type InputEvent = DeviceEvent;
@@ -337,6 +337,8 @@ pub struct Helium {
     update_thread: Option<thread::JoinHandle<()>>,
     /// Boolean to keep track of the running thread
     event_loop_working: Arc<Mutex<bool>>,
+    // Time to keep track of fps
+    fps: Instant,
 }
 
 impl Helium {
@@ -353,6 +355,7 @@ impl Helium {
             renderer: None,
             update_thread: None,
             event_loop_working: Arc::new(Mutex::new(false)),
+            fps: Instant::now(),
         }
     }
 
@@ -518,12 +521,21 @@ impl ApplicationHandler for Helium {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
+                        // renderer.state.fps = format!("{}", 1.0 / self.fps.elapsed().as_secs_f32());
+                        renderer.state.fps =
+                            format!("{:>4.2}", 1.0 / self.fps.elapsed().as_secs_f32());
                         renderer.render();
+                        self.fps = Instant::now();
                     }
                 }
                 WindowEvent::Resized(new_size) => {
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
                         renderer.resize(new_size);
+                        renderer.state.brush.resize_view(
+                            renderer.state.config.width as f32,
+                            renderer.state.config.height as f32,
+                            renderer.get_queue(),
+                        )
                     }
                 }
                 _ => {}
