@@ -1,6 +1,5 @@
 use cgmath::{InnerSpace, Rad, Rotation3};
 use helium::*;
-use log::info;
 
 fn add_model(manager: &mut HeliumManager) {
     let suzzane = manager.create_object(
@@ -12,14 +11,14 @@ fn add_model(manager: &mut HeliumManager) {
 
     let cube = manager.create_object(
         Model3d::from_obj("./assets/cube.obj".to_string()),
-        Transform3d {
-            position: Vector3 {
+        Transform3d::new(
+            Vector3 {
                 x: 0.0,
                 y: 5.0,
                 z: 0.0,
             },
-            rotation: Quaternion::one(),
-        },
+            Quaternion::one(),
+        ),
     );
 
     manager.add_component(cube, Label("Cube".to_string()));
@@ -39,75 +38,48 @@ fn add_camera(manager: &mut HeliumManager) {
 }
 
 fn update_model(manager: &mut HeliumManager) {
-    let models = manager.query::<Model3d>();
     let labels = manager.query::<Label>();
 
     let mut suzzane = None;
     let mut cube = None;
 
-    for (entity, _) in models.iter() {
+    let entities_with_labels = manager.entities_with::<Label>(|label| {
+        label == &Label("Suzzane".to_string()) || label == &Label("Cube".to_string())
+    });
+
+    for entity in entities_with_labels {
         if let Some(label) = labels.get(&entity) {
             if label == &Label("Suzzane".to_string()) {
-                suzzane = Some(*entity);
+                suzzane = Some(entity);
             } else if label == &Label("Cube".to_string()) {
-                cube = Some(*entity);
+                cube = Some(entity);
             }
         }
     }
 
-    drop(models);
     drop(labels);
 
-    manager.update_transform(
+    manager.set_position(
         suzzane.unwrap(),
-        Transform3d {
-            position: Vector3 {
-                x: 0.0,
-                y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
-                z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
-            },
-            rotation: Quaternion::one(),
+        Vector3 {
+            x: 0.0,
+            y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
+            z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
         },
     );
 
-    manager.update_transform(
+    manager.set_rotation(
         cube.unwrap(),
-        Transform3d {
-            position: Vector3 {
-                x: 0.0,
-                y: 5.0,
-                z: 0.0,
-            },
-            rotation: Quaternion::from_axis_angle(
-                Vector3 {
-                    x: 1.0,
-                    y: 1.0,
-                    z: 1.0,
-                }
-                .normalize(),
-                Rad(manager.time.elapsed().as_secs_f32()),
-            ),
-        },
+        Quaternion::from_axis_angle(
+            Vector3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            }
+            .normalize(),
+            Rad(manager.time.elapsed().as_secs_f32()),
+        ),
     );
-    // let models = manager.query::<Model3d>();
-    // let mut entity = 0;
-
-    // while !models.contains_key(&entity) {
-    //     entity += 1;
-    // }
-
-    // drop(models);
-    // manager.update_transform(
-    //     entity,
-    //     Transform3d {
-    //         position: Vector3 {
-    //             x: 0.0,
-    //             y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
-    //             z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
-    //         },
-    //         rotation: Quaternion::one(),
-    //     },
-    // );
 }
 
 fn process_inputs(manager: &mut HeliumManager, event: &DeviceEvent) {

@@ -1,9 +1,8 @@
 use std::time::Instant;
 
 use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
-use log::info;
 use winit::{
-    event::{DeviceEvent, ElementState, KeyEvent, RawKeyEvent, WindowEvent},
+    event::{DeviceEvent, ElementState, RawKeyEvent},
     keyboard::{KeyCode, PhysicalKey},
 };
 
@@ -89,8 +88,6 @@ impl Camera3d {
         backward: bool,
         strafe_left: bool,
         strafe_right: bool,
-        turn_left: bool,
-        turn_right: bool,
         delta_time: &Instant,
     ) {
         let forward_norm = self.target.normalize();

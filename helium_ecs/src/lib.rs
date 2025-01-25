@@ -22,10 +22,22 @@ impl HeliumECS {
         }
     }
 
+    /// Creates a new entity in the world
+    ///
+    /// # Returns
+    ///
+    /// The entity id
     pub fn new_entity(&mut self) -> Entity {
         self.world.new_entity()
     }
 
+    /// Adds the specified component to the specified entity
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component to be added
+    /// * `entity` - The entity id to add the component to
+    /// * `componenet` - The component to add
     pub fn add_component<ComponentType: 'static>(
         &mut self,
         entity: Entity,
@@ -34,6 +46,12 @@ impl HeliumECS {
         self.world.add_component_to_entity(entity, component);
     }
 
+    /// Removes the value from the specified component from the entity
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component to be removed
+    /// * `entity` - The entity id to remove the component from
     pub fn remove_component<ComponentType: 'static>(&mut self, entity: Entity) {
         self.world
             .borrow_component_map_mut::<ComponentType>()
@@ -41,14 +59,61 @@ impl HeliumECS {
             .remove(&entity);
     }
 
+    /// Obtains an immutable reference to the component map specifed
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component map to obtain
+    ///
+    /// # Returns
+    ///
+    /// an immutable reference to the specifed component map
     pub fn query<ComponentType: 'static>(&self) -> Ref<'_, HashMap<Entity, ComponentType>> {
         self.world.borrow_component_map::<ComponentType>().unwrap()
     }
 
+    /// Obtains a mutable reference to the component map specifed
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component map to obtain
+    ///
+    /// # Returns
+    ///
+    /// an mutable reference to the specifed component map
     pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
         self.world
             .borrow_component_map_mut::<ComponentType>()
             .unwrap()
+    }
+
+    /// Gives a list of entities that have a component with a specific comparator operator
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component map to seach
+    /// * `comparator` - A fucntion pointer to compare the component value given
+    ///
+    /// # Returns
+    ///
+    /// A list of entities that contain the specified property
+    pub fn entities_with<ComponentType: 'static>(
+        &self,
+        comparator: fn(&ComponentType) -> bool,
+    ) -> Vec<Entity> {
+        let mut entities = Vec::new();
+        for (entity, component) in self
+            .world
+            .borrow_component_map::<ComponentType>()
+            .unwrap()
+            .iter()
+        {
+            if comparator(component) {
+                entities.push(*entity);
+            }
+        }
+
+        entities
     }
 }
 

@@ -190,6 +190,52 @@ impl HeliumManager {
         entity
     }
 
+    pub fn set_position(&mut self, entity: Entity, position: Vector3<f32>) {
+        let object_index = self
+            .ecs_instance
+            .query::<Model3d>()
+            .get(&entity)
+            .unwrap()
+            .get_renderer_index()
+            .unwrap()
+            .clone();
+        if let Some(transform) = self
+            .ecs_instance
+            .query_mut::<Transform3d>()
+            .get_mut(&entity)
+        {
+            Transform3d::set_position(transform, position);
+            self.renderer_instance
+                .lock()
+                .unwrap()
+                .state
+                .update_instances(object_index, vec![transform.clone().into()]);
+        }
+    }
+
+    pub fn set_rotation(&mut self, entity: Entity, rotation: Quaternion<f32>) {
+        let object_index = self
+            .ecs_instance
+            .query::<Model3d>()
+            .get(&entity)
+            .unwrap()
+            .get_renderer_index()
+            .unwrap()
+            .clone();
+        if let Some(transform) = self
+            .ecs_instance
+            .query_mut::<Transform3d>()
+            .get_mut(&entity)
+        {
+            Transform3d::set_rotation(transform, rotation);
+            self.renderer_instance
+                .lock()
+                .unwrap()
+                .state
+                .update_instances(object_index, vec![transform.clone().into()]);
+        }
+    }
+
     pub fn move_transform_to_renderer(&self, entity: Entity) {
         let object_index = self
             .ecs_instance
@@ -252,6 +298,23 @@ impl HeliumManager {
     /// A `RefMut` to the `HashMap` of the specified `ComponentType`
     pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
         self.ecs_instance.query_mut::<ComponentType>()
+    }
+
+    /// Gives a list of entities that have a component with a specific comparator operator
+    ///
+    /// # Arguments
+    ///
+    /// * `ComponentType` - The type for the component map to seach
+    /// * `comparator` - A fucntion pointer to compare the component value given
+    ///
+    /// # Returns
+    ///
+    /// A list of entities that contain the specified property
+    pub fn entities_with<ComponentType: 'static>(
+        &self,
+        comparator: fn(&ComponentType) -> bool,
+    ) -> Vec<Entity> {
+        self.ecs_instance.entities_with::<ComponentType>(comparator)
     }
 }
 
@@ -419,8 +482,6 @@ impl ApplicationHandler for Helium {
                         controller.backward,
                         controller.left,
                         controller.right,
-                        false,
-                        false,
                         &manager.delta_time,
                     );
                     camera.add_yaw(-controller.delta.0);
@@ -467,22 +528,19 @@ impl ApplicationHandler for Helium {
                 }
                 _ => {}
             }
-
-            // Send the event to the helium event handlers
-            // self.event_handler.lock().unwrap().push_back(event);
         }
     }
 
     fn device_event(
         &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        device_id: DeviceId,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _device_id: DeviceId,
         event: DeviceEvent,
     ) {
         self.event_handler.lock().unwrap().push_back(event);
     }
 
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         self.window.as_ref().unwrap().request_redraw();
     }
 }
