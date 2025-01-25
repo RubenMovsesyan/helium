@@ -82,7 +82,7 @@ fn update_model(manager: &mut HeliumManager) {
     );
 }
 
-fn process_inputs(manager: &mut HeliumManager, event: &DeviceEvent) {
+fn process_inputs(manager: &mut HeliumManager, event: &InputEvent) {
     let mut cameras = manager.query_mut::<CameraController>();
 
     for (_, camera) in cameras.iter_mut() {

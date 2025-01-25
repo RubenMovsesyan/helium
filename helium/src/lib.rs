@@ -1,33 +1,39 @@
-pub use cgmath::{One, Quaternion, Vector3, Zero};
-pub use helium_compatibility::CameraController;
-pub use helium_compatibility::{Camera3d, Label, Model3d, Transform3d};
-pub use helium_ecs::Entity;
-pub use helium_ecs::HeliumECS;
-use helium_renderer::helium_state::{Text, TextSection};
-pub use helium_renderer::instance::Instance;
-pub use helium_renderer::HeliumRenderer;
-pub use helium_renderer::HeliumState;
+// logging
 use log::*;
-pub use std::cell::{Ref, RefMut};
-pub use std::collections::HashMap;
+
+// std imports
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+
+// std imports to be broadcast
+pub use std::cell::{Ref, RefMut};
+pub use std::collections::HashMap;
 pub use std::time::Instant;
+
+// wgpu imports
 pub use wgpu::SurfaceConfiguration;
-pub use winit::event::{DeviceEvent, DeviceId};
-pub use winit::event::{ElementState, KeyEvent, WindowEvent};
-pub use winit::keyboard::{KeyCode, PhysicalKey};
+
+// Math
+pub use cgmath::{One, Quaternion, Vector3, Zero};
+
+// Winit imports
 use winit::{
     application::ApplicationHandler,
+    event::{DeviceEvent, DeviceId, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
+
+// Helium compatibility imports
+pub use helium_compatibility::{Camera3d, CameraController, Label, Model3d, Transform3d};
+pub use helium_ecs::{Entity, HeliumECS};
+pub use helium_renderer::{instance::Instance, HeliumRenderer, HeliumState};
 mod helium_compatibility;
 
+// Custom type aliases for simplicity
 pub type InputEvent = DeviceEvent;
-
 pub type StartupFunction = fn(&mut HeliumManager);
 pub type UpdateFunction = fn(&mut HeliumManager);
 pub type InputFunction = fn(&mut HeliumManager, &InputEvent);
@@ -521,9 +527,8 @@ impl ApplicationHandler for Helium {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
-                        // renderer.state.fps = format!("{}", 1.0 / self.fps.elapsed().as_secs_f32());
                         renderer.state.fps =
-                            format!("{:>4.2}", 1.0 / self.fps.elapsed().as_secs_f32());
+                            format!("{:>7.2} FPS", 1.0 / self.fps.elapsed().as_secs_f32());
                         renderer.render();
                         self.fps = Instant::now();
                     }
