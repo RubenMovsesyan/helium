@@ -20,7 +20,7 @@ fn add_model(manager: &mut HeliumManager) {
         suzzane,
         RectangleCollider {
             width: 1.0,
-            height: 1.0,
+            height: 2.0,
             length: 1.0,
             origin: Vector3 {
                 x: 0.0,
@@ -44,7 +44,18 @@ fn add_model(manager: &mut HeliumManager) {
 
     manager.add_component(cube, Label("Cube".to_string()));
 
-    let floor = manager.create_entity();
+    let floor = manager.create_object(
+        Model3d::from_obj("./assets/plane.obj".to_string()),
+        Transform3d::new(
+            Vector3 {
+                x: 0.0,
+                y: -10.0,
+                z: 0.0,
+            },
+            Quaternion::one(),
+        ),
+    );
+
     manager.add_component(
         floor,
         StationaryPlaneCollider::new(

@@ -5,6 +5,10 @@ use std::ops::Range;
 pub trait Collider {
     fn is_colliding(&self, other: &dyn Collider) -> bool;
 
+    fn is_colliding_x(&self, other: &dyn Collider) -> bool;
+    fn is_colliding_y(&self, other: &dyn Collider) -> bool;
+    fn is_colliding_z(&self, other: &dyn Collider) -> bool;
+
     fn contains_x(&self, range: &Range<f32>) -> bool;
     fn contains_y(&self, range: &Range<f32>) -> bool;
     fn contains_z(&self, range: &Range<f32>) -> bool;
@@ -41,6 +45,24 @@ impl Collider for RectangleCollider {
         other.contains_x(&((self.origin.x - width_2)..(self.origin.x + width_2)))
             && other.contains_y(&((self.origin.y - height_2)..(self.origin.y + height_2)))
             && other.contains_z(&((self.origin.z - length_2)..(self.origin.z + length_2)))
+    }
+
+    fn is_colliding_x(&self, other: &dyn Collider) -> bool {
+        let width_2 = self.width / 2.0;
+
+        other.contains_x(&((self.origin.x - width_2)..(self.origin.x + width_2)))
+    }
+
+    fn is_colliding_y(&self, other: &dyn Collider) -> bool {
+        let height_2 = self.height / 2.0;
+
+        other.contains_y(&((self.origin.y - height_2)..(self.origin.y + height_2)))
+    }
+
+    fn is_colliding_z(&self, other: &dyn Collider) -> bool {
+        let length_2 = self.length / 2.0;
+
+        other.contains_z(&((self.origin.z - length_2)..(self.origin.z + length_2)))
     }
 
     fn contains_x(&self, range: &Range<f32>) -> bool {
@@ -211,6 +233,18 @@ impl StationaryPlaneCollider {
 impl Collider for StationaryPlaneCollider {
     // Alwasy false because it is stationary
     fn is_colliding(&self, _other: &dyn Collider) -> bool {
+        false
+    }
+
+    fn is_colliding_x(&self, _other: &dyn Collider) -> bool {
+        false
+    }
+
+    fn is_colliding_y(&self, _other: &dyn Collider) -> bool {
+        false
+    }
+
+    fn is_colliding_z(&self, _other: &dyn Collider) -> bool {
         false
     }
 

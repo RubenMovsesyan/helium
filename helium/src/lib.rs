@@ -345,7 +345,7 @@ impl HeliumManager {
 }
 
 // Internal function for handling collisions if they are turned on
-fn handle_collisions(manager: &mut HeliumManager) {
+fn handle_gravity_collisions(manager: &mut HeliumManager) {
     let stationary_plane_colliders = match manager.query::<StationaryPlaneCollider>() {
         Some(plane_colliders) => plane_colliders,
         None => return,
@@ -368,9 +368,9 @@ fn handle_collisions(manager: &mut HeliumManager) {
 
     for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
         for (_, plane_collider) in stationary_plane_colliders.iter() {
-            if rectangle_colider.is_colliding(plane_collider) {
+            if rectangle_colider.is_colliding_y(plane_collider) {
                 // info!("Colliding! {:#?} {:#?}", rectangle_colider, plane_collider);
-                // rectangle_colider.snap(plane_collider);
+                rectangle_colider.snap_y(plane_collider);
 
                 if let Some(gravity) = gravities.get_mut(entity) {
                     gravity.kill_velocity();
@@ -405,15 +405,8 @@ fn handle_gravity(manager: &mut HeliumManager) {
         if let Some(transform) = transforms.get_mut(entity) {
             transform.add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
             entity_update_list.push(*entity);
-            // manager.move_transform_to_renderer(*entity);
         }
     }
-
-    // drop(transforms);
-
-    // entity_update_list
-    //     .iter()
-    //     .for_each(|entity| manager.move_transform_to_renderer(*entity));
 }
 
 fn update_transforms_to_renderer(manager: &mut HeliumManager) {
@@ -448,23 +441,6 @@ fn update_transforms_to_renderer(manager: &mut HeliumManager) {
         transform.update();
     }
 }
-
-// let object_index = self
-//     .ecs_instance
-//     .query::<Model3d>()
-//     .get(&entity)
-//     .unwrap()
-//     .get_renderer_index()
-//     .unwrap()
-//     .clone();
-// let transforms = self.ecs_instance.query::<Transform3d>();
-// if let Some(transform) = transforms.get(&entity) {
-//     self.renderer_instance
-//         .lock()
-//         .unwrap()
-//         .state
-//         .update_instances(object_index, vec![transform.clone().into()]);
-// }
 
 // Helium instance
 
@@ -646,14 +622,8 @@ impl ApplicationHandler for Helium {
                     }
                 }
 
-                // drop(cameras);
-                // drop(camera_controllers);
-
                 // Handle collisions
-                handle_collisions(&mut manager);
-                // if let Some(collider_function) = *colliders_clone.lock().unwrap() {
-                //     collider_function(&mut manager);
-                // }
+                handle_gravity_collisions(&mut manager);
 
                 // Handle Gravity
                 handle_gravity(&mut manager);

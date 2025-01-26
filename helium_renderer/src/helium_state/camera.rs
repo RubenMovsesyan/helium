@@ -44,7 +44,7 @@ impl Camera {
             label: Some("Camera Bind Group Layout"),
             entries: &[BindGroupLayoutEntry {
                 binding: 0,
-                visibility: ShaderStages::VERTEX,
+                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -66,9 +66,10 @@ impl Camera {
         zfar: f32,
     ) -> Self {
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj_with_matrix(Self::build_view_projection_matrix_parts(
-            eye, target, up, aspect, fovy, znear, zfar,
-        ));
+        camera_uniform.update_view_proj_with_matrix(
+            eye,
+            Self::build_view_projection_matrix_parts(eye, target, up, aspect, fovy, znear, zfar),
+        );
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -80,7 +81,7 @@ impl Camera {
             label: Some("Camera bind group layout"),
             entries: &[BindGroupLayoutEntry {
                 binding: 0,
-                visibility: ShaderStages::VERTEX,
+                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -119,8 +120,9 @@ impl Camera {
     }
 
     pub fn update_view_proj(&mut self) {
-        self.camera_uniform
-            .update_view_proj_with_matrix(Self::build_view_projection_matrix_parts(
+        self.camera_uniform.update_view_proj_with_matrix(
+            self.eye,
+            Self::build_view_projection_matrix_parts(
                 self.eye,
                 self.target,
                 self.up,
@@ -128,7 +130,8 @@ impl Camera {
                 self.fovy,
                 self.znear,
                 self.zfar,
-            ));
+            ),
+        );
     }
 
     pub fn build_view_projection_matrix_parts(
@@ -154,17 +157,20 @@ impl Camera {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
+    view_position: [f32; 4],
     view_proj: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
     pub fn new() -> Self {
         Self {
+            view_position: [0.0; 4],
             view_proj: Matrix4::identity().into(),
         }
     }
 
-    pub fn update_view_proj_with_matrix(&mut self, matrix: Matrix4<f32>) {
+    pub fn update_view_proj_with_matrix(&mut self, eye: Point3<f32>, matrix: Matrix4<f32>) {
+        self.view_position = eye.to_homogeneous().into();
         self.view_proj = matrix.into();
     }
 }

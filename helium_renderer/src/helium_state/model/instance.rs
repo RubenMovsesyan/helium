@@ -1,4 +1,4 @@
-use cgmath::{Matrix4, One, Quaternion, Vector3};
+use cgmath::{Matrix3, Matrix4, One, Quaternion, Vector3};
 use wgpu::{BufferAddress, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
 
 use super::vertex::Vertex;
@@ -28,6 +28,7 @@ pub const INSTANCE_RAW_SIZE: usize = std::mem::size_of::<InstanceRaw>();
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceRaw {
     model: [[f32; 4]; 4],
+    normal: [[f32; 3]; 3],
 }
 
 #[allow(unused)]
@@ -37,8 +38,11 @@ impl Instance {
     }
 
     pub fn to_raw(&self) -> InstanceRaw {
+        let model =
+            (Matrix4::from_translation(self.position) * Matrix4::from(self.rotation)).into();
         InstanceRaw {
-            model: (Matrix4::from_translation(self.position) * Matrix4::from(self.rotation)).into(),
+            model,
+            normal: Matrix3::from(self.rotation).into(),
         }
     }
 }
@@ -72,6 +76,21 @@ impl Vertex for InstanceRaw {
                     offset: mem::size_of::<[f32; 12]>() as BufferAddress,
                     shader_location: 8,
                     format: VertexFormat::Float32x4,
+                },
+                VertexAttribute {
+                    offset: mem::size_of::<[f32; 16]>() as BufferAddress,
+                    shader_location: 9,
+                    format: VertexFormat::Float32x3,
+                },
+                VertexAttribute {
+                    offset: mem::size_of::<[f32; 19]>() as BufferAddress,
+                    shader_location: 10,
+                    format: VertexFormat::Float32x3,
+                },
+                VertexAttribute {
+                    offset: mem::size_of::<[f32; 22]>() as BufferAddress,
+                    shader_location: 11,
+                    format: VertexFormat::Float32x3,
                 },
             ],
         }

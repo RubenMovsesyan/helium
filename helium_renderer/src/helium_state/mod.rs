@@ -2,6 +2,7 @@
 use cgmath::Point3;
 use cgmath::Vector3;
 use std::{iter::once, path::Path, sync::Arc};
+use wgpu::util::RenderEncoder;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 // Async
 use smol::block_on;
@@ -30,12 +31,14 @@ use log::*;
 // State handling modules
 pub mod camera;
 mod helium_texture;
+pub mod light;
 pub mod model;
 mod resources;
 
 // module imports
 pub use camera::Camera;
 use helium_texture::HeliumTexture;
+pub use light::Light;
 use model::{
     instance::INSTANCE_RAW_SIZE, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline,
     Model,
@@ -54,7 +57,9 @@ pub struct HeliumState {
     // Camera
     camera: Camera,
     camera_active: bool,
-    // camera_controller: CameraController,
+
+    // Lighting
+    light: Light,
 
     // Depth texture for rendering the correct faces of a mesh
     depth_texture: HeliumTexture,
@@ -280,6 +285,17 @@ impl HeliumState {
             100.0,
         );
 
+        // Temp
+        let light = Light::new(
+            Vector3 {
+                x: 10.0,
+                y: 10.0,
+                z: 10.0,
+            },
+            (1.0, 1.0, 1.0),
+            &device,
+        );
+
         // let camera_controller = CameraController::new(0.2);
 
         let depth_texture = HeliumTexture::create_depth_texture(&device, &config);
@@ -299,6 +315,7 @@ impl HeliumState {
             vec![
                 &HeliumTexture::get_layout(&device),
                 &Camera::get_camera_layout(&device),
+                &Light::get_bind_group_layout(&device),
             ],
             &device,
             &config,
@@ -318,6 +335,7 @@ impl HeliumState {
             config,
             camera,
             camera_active: false,
+            light,
             depth_texture,
             render_pipeline,
             models: obj_models,
@@ -413,7 +431,7 @@ impl HeliumState {
                     view: &view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(Color::WHITE),
+                        load: LoadOp::Clear(Color::BLACK),
                         store: StoreOp::Store,
                     },
                 })],
@@ -436,6 +454,9 @@ impl HeliumState {
                 // Set this to the current held instance buffer that stores all the instance data for each mesh
                 render_pass.set_vertex_buffer(1, self.model_instance_buffer.slice(..));
 
+                // Lighting
+                render_pass.set_bind_group(2, self.light.get_bind_group(), &[]);
+
                 // Sets each of the bind groups
                 use model::draw_model::DrawModel;
                 for model in self.models.iter() {
@@ -453,7 +474,8 @@ impl HeliumState {
 
         // Overlay render pass
         {
-            let section = TextSection::default().add_text(Text::new(&self.fps));
+            let section = TextSection::default()
+                .add_text(Text::new(&self.fps).with_color([1.0, 1.0, 1.0, 1.0]));
             self.brush
                 .queue(&self.device, &self.queue, [&section])
                 .unwrap();
