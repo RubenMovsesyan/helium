@@ -5,6 +5,7 @@ use helium_renderer::instance::Instance;
 pub struct Transform3d {
     pub position: Vector3<f32>,
     pub rotation: Quaternion<f32>,
+    pub update_flag: bool,
 }
 
 impl Default for Transform3d {
@@ -12,31 +13,44 @@ impl Default for Transform3d {
         Self {
             position: Vector3::zero(),
             rotation: Quaternion::one(),
+            update_flag: false,
         }
     }
 }
 
 impl Transform3d {
     pub fn new(position: Vector3<f32>, rotation: Quaternion<f32>) -> Self {
-        Self { position, rotation }
+        Self {
+            position,
+            rotation,
+            update_flag: false,
+        }
     }
 
     // Setters
     pub fn update_position(&mut self, new_position: Vector3<f32>) {
         self.position = new_position;
+        self.update_flag = true;
     }
 
     pub fn add_position(&mut self, position_add: Vector3<f32>) {
         self.position += position_add;
+        self.update_flag = true;
     }
 
     pub fn update_rotation(&mut self, new_rotation: Quaternion<f32>) {
         self.rotation = new_rotation;
+        self.update_flag = true;
     }
 
     pub fn update_transform(&mut self, new_position: Vector3<f32>, new_rotation: Quaternion<f32>) {
         self.position = new_position;
         self.rotation = new_rotation;
+        self.update_flag = true;
+    }
+
+    pub fn update(&mut self) {
+        self.update_flag = false;
     }
 
     // Getters
@@ -55,14 +69,17 @@ impl Transform3d {
     // Static functions
     pub fn translate(transform: &mut Self, translation: Vector3<f32>) {
         transform.position += translation;
+        transform.update_flag = true;
     }
 
     pub fn set_position(transform: &mut Self, position: Vector3<f32>) {
         transform.position = position;
+        transform.update_flag = true;
     }
 
     pub fn set_rotation(transform: &mut Self, rotation: Quaternion<f32>) {
         transform.rotation = rotation;
+        transform.update_flag = true;
     }
 }
 

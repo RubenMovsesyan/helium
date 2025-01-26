@@ -1,3 +1,4 @@
+use helium_compatibility::transform;
 // logging
 use log::*;
 
@@ -135,6 +136,15 @@ impl HeliumManager {
         );
     }
 
+    /// Creates a new entity in the ECS
+    ///
+    /// # Returns
+    ///
+    /// An `Entity` id
+    pub fn create_entity(&mut self) -> Entity {
+        self.ecs_instance.new_entity()
+    }
+
     /// Creates a 3d model component with the required transform component
     ///
     /// # Arguments
@@ -173,6 +183,7 @@ impl HeliumManager {
     /// # Returns
     ///
     /// The entity id
+    #[deprecated]
     pub fn update_transform(&mut self, entity: Entity, transform: Transform3d) -> Entity {
         self.ecs_instance.add_component(entity, transform);
 
@@ -180,6 +191,7 @@ impl HeliumManager {
         let object_index = self
             .ecs_instance
             .query::<Model3d>()
+            .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
@@ -194,10 +206,12 @@ impl HeliumManager {
         entity
     }
 
+    #[deprecated]
     pub fn set_position(&mut self, entity: Entity, position: Vector3<f32>) {
         let object_index = self
             .ecs_instance
             .query::<Model3d>()
+            .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
@@ -206,6 +220,7 @@ impl HeliumManager {
         if let Some(transform) = self
             .ecs_instance
             .query_mut::<Transform3d>()
+            .unwrap()
             .get_mut(&entity)
         {
             Transform3d::set_position(transform, position);
@@ -217,10 +232,12 @@ impl HeliumManager {
         }
     }
 
+    #[deprecated]
     pub fn set_rotation(&mut self, entity: Entity, rotation: Quaternion<f32>) {
         let object_index = self
             .ecs_instance
             .query::<Model3d>()
+            .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
@@ -229,6 +246,7 @@ impl HeliumManager {
         if let Some(transform) = self
             .ecs_instance
             .query_mut::<Transform3d>()
+            .unwrap()
             .get_mut(&entity)
         {
             Transform3d::set_rotation(transform, rotation);
@@ -240,17 +258,19 @@ impl HeliumManager {
         }
     }
 
+    #[deprecated]
     pub fn move_transform_to_renderer(&self, entity: Entity) {
         let object_index = self
             .ecs_instance
             .query::<Model3d>()
+            .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
             .unwrap()
             .clone();
         let transforms = self.ecs_instance.query::<Transform3d>();
-        if let Some(transform) = transforms.get(&entity) {
+        if let Some(transform) = transforms.unwrap().get(&entity) {
             self.renderer_instance
                 .lock()
                 .unwrap()
@@ -287,7 +307,7 @@ impl HeliumManager {
     /// # Returns
     ///
     /// A `Ref` to the `HashMap` of the specified `ComponentType`
-    pub fn query<ComponentType: 'static>(&self) -> Ref<'_, HashMap<Entity, ComponentType>> {
+    pub fn query<ComponentType: 'static>(&self) -> Option<Ref<'_, HashMap<Entity, ComponentType>>> {
         self.ecs_instance.query::<ComponentType>()
     }
 
@@ -300,7 +320,9 @@ impl HeliumManager {
     /// # Returns
     ///
     /// A `RefMut` to the `HashMap` of the specified `ComponentType`
-    pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
+    pub fn query_mut<ComponentType: 'static>(
+        &self,
+    ) -> Option<RefMut<'_, HashMap<Entity, ComponentType>>> {
         self.ecs_instance.query_mut::<ComponentType>()
     }
 
@@ -324,42 +346,58 @@ impl HeliumManager {
 
 // Internal function for handling collisions if they are turned on
 fn handle_collisions(manager: &mut HeliumManager) {
-    let stationary_plane_colliders = manager.query::<StationaryPlaneCollider>();
-    let mut rectangle_colliders = manager.query_mut::<RectangleCollider>();
-    let mut gravities = manager.query_mut::<Gravity>();
+    let stationary_plane_colliders = match manager.query::<StationaryPlaneCollider>() {
+        Some(plane_colliders) => plane_colliders,
+        None => return,
+    };
 
-    let mut transform_list = Vec::new();
+    let mut rectangle_colliders = match manager.query_mut::<RectangleCollider>() {
+        Some(rectangle_colliders) => rectangle_colliders,
+        None => return,
+    };
+
+    let mut transforms = match manager.query_mut::<Transform3d>() {
+        Some(transforms) => transforms,
+        None => return,
+    };
+
+    let mut gravities = match manager.query_mut::<Gravity>() {
+        Some(gravities) => gravities,
+        None => return,
+    };
 
     for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
         for (_, plane_collider) in stationary_plane_colliders.iter() {
             if rectangle_colider.is_colliding(plane_collider) {
-                rectangle_colider.snap(plane_collider);
-                transform_list.push(*entity);
+                // info!("Colliding! {:#?} {:#?}", rectangle_colider, plane_collider);
+                // rectangle_colider.snap(plane_collider);
 
                 if let Some(gravity) = gravities.get_mut(entity) {
                     gravity.kill_velocity();
                 }
+
+                if let Some(transform) = transforms.get_mut(&entity) {
+                    transform.update_position(*rectangle_colider.origin());
+                }
             }
         }
-    }
 
-    let rectangle_colliders = manager.query::<RectangleCollider>();
-    let mut transforms = manager.query_mut::<Transform3d>();
-
-    for entity in transform_list {
-        let new_origin = rectangle_colliders.get(&entity).unwrap().origin;
-
-        if let Some(transform) = transforms.get_mut(&entity) {
-            transform.update_position(new_origin);
-
-            manager.move_transform_to_renderer(entity);
+        if let Some(transform) = transforms.get(&entity) {
+            rectangle_colider.origin = transform.position;
         }
     }
 }
 
 fn handle_gravity(manager: &mut HeliumManager) {
-    let mut transforms = manager.query_mut::<Transform3d>();
-    let mut gravities = manager.query_mut::<Gravity>();
+    let mut transforms = match manager.query_mut::<Transform3d>() {
+        Some(transforms) => transforms,
+        None => return,
+    };
+
+    let mut gravities = match manager.query_mut::<Gravity>() {
+        Some(gravities) => gravities,
+        None => return,
+    };
 
     let mut entity_update_list = Vec::new();
     for (entity, gravity) in gravities.iter_mut() {
@@ -371,12 +409,62 @@ fn handle_gravity(manager: &mut HeliumManager) {
         }
     }
 
-    drop(transforms);
+    // drop(transforms);
 
-    entity_update_list
-        .iter()
-        .for_each(|entity| manager.move_transform_to_renderer(*entity));
+    // entity_update_list
+    //     .iter()
+    //     .for_each(|entity| manager.move_transform_to_renderer(*entity));
 }
+
+fn update_transforms_to_renderer(manager: &mut HeliumManager) {
+    let mut transforms = match manager.query_mut::<Transform3d>() {
+        Some(transforms) => transforms,
+        None => return,
+    };
+
+    let models = match manager.query::<Model3d>() {
+        Some(models) => models,
+        None => return,
+    };
+
+    for (entity, transform) in transforms.iter_mut() {
+        if !transform.update_flag {
+            continue;
+        }
+        let object_index = *models
+            .get(&entity)
+            .unwrap()
+            .get_renderer_index()
+            .clone()
+            .unwrap();
+
+        manager
+            .renderer_instance
+            .lock()
+            .unwrap()
+            .state
+            .update_instances(object_index, vec![transform.clone().into()]);
+
+        transform.update();
+    }
+}
+
+// let object_index = self
+//     .ecs_instance
+//     .query::<Model3d>()
+//     .get(&entity)
+//     .unwrap()
+//     .get_renderer_index()
+//     .unwrap()
+//     .clone();
+// let transforms = self.ecs_instance.query::<Transform3d>();
+// if let Some(transform) = transforms.get(&entity) {
+//     self.renderer_instance
+//         .lock()
+//         .unwrap()
+//         .state
+//         .update_instances(object_index, vec![transform.clone().into()]);
+// }
 
 // Helium instance
 
@@ -401,9 +489,6 @@ pub struct Helium {
     event_loop_working: Arc<Mutex<bool>>,
     /// Time to keep track of fps
     fps: Instant,
-
-    /// Optional components
-    colliders: Arc<Mutex<Option<UpdateFunction>>>,
 }
 
 impl Helium {
@@ -421,7 +506,6 @@ impl Helium {
             update_thread: None,
             event_loop_working: Arc::new(Mutex::new(false)),
             fps: Instant::now(),
-            colliders: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -506,7 +590,6 @@ impl ApplicationHandler for Helium {
         let input_functions_clone = self.input_functions.clone();
         let renderer_clone = self.renderer.as_ref().unwrap().clone();
         let event_handler_clone = self.event_handler.clone();
-        let colliders_clone = self.colliders.clone();
 
         // For making sure this thread ends as soon as the main thread ends
         let event_loop_working_clone = self.event_loop_working.clone();
@@ -538,38 +621,45 @@ impl ApplicationHandler for Helium {
 
                 // HACK: handle the camera update here
                 // This can probably be done in a better place
-                let mut camera_controllers = manager.query_mut::<CameraController>();
-                let mut cameras = manager.query_mut::<Camera3d>();
+                // let mut camera_controllers = manager.query_mut::<CameraController>();
+                // let mut cameras = manager.query_mut::<Camera3d>();
+                if let Some(mut camera_controllers) = manager.query_mut::<CameraController>() {
+                    if let Some(mut cameras) = manager.query_mut::<Camera3d>() {
+                        let cam_and_controllers = cameras
+                            .iter_mut()
+                            .zip(camera_controllers.iter_mut())
+                            .filter_map(|(camera, controller)| Some((camera.1, controller.1)));
 
-                let cam_and_controllers = cameras
-                    .iter_mut()
-                    .zip(camera_controllers.iter_mut())
-                    .filter_map(|(camera, controller)| Some((camera.1, controller.1)));
-
-                for (camera, controller) in cam_and_controllers {
-                    camera.update_camera(
-                        controller.forward,
-                        controller.backward,
-                        controller.left,
-                        controller.right,
-                        &manager.delta_time,
-                    );
-                    camera.add_yaw(-controller.delta.0);
-                    camera.add_pitch(-controller.delta.1);
-                    controller.delta = (0.0, 0.0);
-                    manager.move_camera_to_render(camera);
+                        for (camera, controller) in cam_and_controllers {
+                            camera.update_camera(
+                                controller.forward,
+                                controller.backward,
+                                controller.left,
+                                controller.right,
+                                &manager.delta_time,
+                            );
+                            camera.add_yaw(-controller.delta.0);
+                            camera.add_pitch(-controller.delta.1);
+                            controller.delta = (0.0, 0.0);
+                            manager.move_camera_to_render(camera);
+                        }
+                    }
                 }
 
-                drop(cameras);
-                drop(camera_controllers);
+                // drop(cameras);
+                // drop(camera_controllers);
 
                 // Handle collisions
-                if let Some(collider_function) = *colliders_clone.lock().unwrap() {
-                    collider_function(&mut manager);
-                }
+                handle_collisions(&mut manager);
+                // if let Some(collider_function) = *colliders_clone.lock().unwrap() {
+                //     collider_function(&mut manager);
+                // }
 
                 // Handle Gravity
                 handle_gravity(&mut manager);
+
+                // Update all the changed transforms
+                update_transforms_to_renderer(&mut manager);
 
                 manager.delta_time = Instant::now();
 

@@ -1024,6 +1024,7 @@ name = "helium_collisions"
 version = "0.1.0"
 dependencies = [
  "cgmath",
+ "log",
 ]
 
 [[package]]

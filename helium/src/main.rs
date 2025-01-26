@@ -16,6 +16,19 @@ fn add_model(manager: &mut HeliumManager) {
             z: 0.0,
         }),
     );
+    manager.add_component(
+        suzzane,
+        RectangleCollider {
+            width: 1.0,
+            height: 1.0,
+            length: 1.0,
+            origin: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        },
+    );
 
     let cube = manager.create_object(
         Model3d::from_obj("./assets/cube.obj".to_string()),
@@ -30,6 +43,21 @@ fn add_model(manager: &mut HeliumManager) {
     );
 
     manager.add_component(cube, Label("Cube".to_string()));
+
+    let floor = manager.create_entity();
+    manager.add_component(
+        floor,
+        StationaryPlaneCollider::new(
+            10.0,
+            10.0,
+            Vector3 {
+                x: 0.0,
+                y: -10.0,
+                z: 0.0,
+            },
+            Quaternion::one(),
+        ),
+    );
 }
 
 fn add_camera(manager: &mut HeliumManager) {
@@ -46,7 +74,7 @@ fn add_camera(manager: &mut HeliumManager) {
 }
 
 fn update_model(manager: &mut HeliumManager) {
-    let labels = manager.query::<Label>();
+    let labels = manager.query::<Label>().unwrap();
 
     // let mut suzzane = None;
     let mut cube = None;
@@ -67,15 +95,6 @@ fn update_model(manager: &mut HeliumManager) {
 
     drop(labels);
 
-    // manager.set_position(
-    //     suzzane.unwrap(),
-    //     Vector3 {
-    //         x: 0.0,
-    //         y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
-    //         z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
-    //     },
-    // );
-
     manager.set_rotation(
         cube.unwrap(),
         Quaternion::from_axis_angle(
@@ -91,7 +110,7 @@ fn update_model(manager: &mut HeliumManager) {
 }
 
 fn process_inputs(manager: &mut HeliumManager, event: &InputEvent) {
-    let mut cameras = manager.query_mut::<CameraController>();
+    let mut cameras = manager.query_mut::<CameraController>().unwrap();
 
     for (_, camera) in cameras.iter_mut() {
         camera.process_events(event);

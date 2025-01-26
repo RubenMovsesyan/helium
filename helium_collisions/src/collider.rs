@@ -1,4 +1,5 @@
 use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
+use log::*;
 use std::ops::Range;
 
 pub trait Collider {
@@ -151,6 +152,7 @@ impl Collider for RectangleCollider {
     }
 }
 
+#[derive(Debug)]
 pub struct StationaryPlaneCollider {
     pub width: f32,
     pub length: f32,
@@ -194,6 +196,7 @@ impl StationaryPlaneCollider {
 
         for point in plane_points.iter_mut() {
             *point = orientation.normalize().rotate_point(*point);
+            *point += origin;
         }
 
         Self {
@@ -232,10 +235,11 @@ impl Collider for StationaryPlaneCollider {
             min_x.unwrap()..max_x.unwrap()
         };
 
-        x_range.contains(&range.start)
-            || x_range.contains(&range.end)
-            || range.contains(&x_range.start)
-            || range.contains(&x_range.end)
+        if x_range.is_empty() {
+            return range.contains(&x_range.start);
+        }
+
+        x_range.contains(&range.start) || x_range.contains(&range.end)
     }
 
     fn contains_y(&self, range: &Range<f32>) -> bool {
@@ -259,10 +263,11 @@ impl Collider for StationaryPlaneCollider {
             min_y.unwrap()..max_y.unwrap()
         };
 
-        y_range.contains(&range.start)
-            || y_range.contains(&range.end)
-            || range.contains(&y_range.start)
-            || range.contains(&y_range.end)
+        if y_range.is_empty() {
+            return range.contains(&y_range.start);
+        }
+
+        y_range.contains(&range.start) || y_range.contains(&range.end)
     }
 
     fn contains_z(&self, range: &Range<f32>) -> bool {
@@ -286,10 +291,11 @@ impl Collider for StationaryPlaneCollider {
             min_z.unwrap()..max_z.unwrap()
         };
 
-        z_range.contains(&range.start)
-            || z_range.contains(&range.end)
-            || range.contains(&z_range.start)
-            || range.contains(&z_range.end)
+        if z_range.is_empty() {
+            return range.contains(&z_range.start);
+        }
+
+        z_range.contains(&range.start) || z_range.contains(&range.end)
     }
 
     // No snapping on stationalry colliders

@@ -1,10 +1,9 @@
 use std::{
-    cell::{Ref, RefMut},
+    cell::{Ref, RefCell, RefMut},
     collections::HashMap,
 };
 
 pub use entity::Entity;
-#[allow(unused_imports)]
 use log::*;
 use world::World;
 
@@ -69,8 +68,8 @@ impl HeliumECS {
     /// # Returns
     ///
     /// an immutable reference to the specifed component map
-    pub fn query<ComponentType: 'static>(&self) -> Ref<'_, HashMap<Entity, ComponentType>> {
-        self.world.borrow_component_map::<ComponentType>().unwrap()
+    pub fn query<ComponentType: 'static>(&self) -> Option<Ref<'_, HashMap<Entity, ComponentType>>> {
+        self.world.borrow_component_map::<ComponentType>()
     }
 
     /// Obtains a mutable reference to the component map specifed
@@ -82,10 +81,10 @@ impl HeliumECS {
     /// # Returns
     ///
     /// an mutable reference to the specifed component map
-    pub fn query_mut<ComponentType: 'static>(&self) -> RefMut<'_, HashMap<Entity, ComponentType>> {
-        self.world
-            .borrow_component_map_mut::<ComponentType>()
-            .unwrap()
+    pub fn query_mut<ComponentType: 'static>(
+        &self,
+    ) -> Option<RefMut<'_, HashMap<Entity, ComponentType>>> {
+        self.world.borrow_component_map_mut::<ComponentType>()
     }
 
     /// Gives a list of entities that have a component with a specific comparator operator
