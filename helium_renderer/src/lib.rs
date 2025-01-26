@@ -42,10 +42,6 @@ impl HeliumRenderer {
         self.update_functions = update_functions;
     }
 
-    pub fn update(&mut self) {
-        self.state.update();
-    }
-
     pub fn render(&mut self) {
         _ = self.state.render();
     }

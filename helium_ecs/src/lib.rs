@@ -4,6 +4,7 @@ use std::{
 };
 
 pub use entity::Entity;
+#[allow(unused_imports)]
 use log::*;
 use world::World;
 

@@ -1008,13 +1008,22 @@ name = "helium"
 version = "0.1.0"
 dependencies = [
  "cgmath",
+ "helium_collisions",
  "helium_ecs",
+ "helium_physics",
  "helium_renderer",
  "log",
  "pretty_env_logger",
  "smol",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "helium_collisions"
+version = "0.1.0"
+dependencies = [
+ "cgmath",
 ]
 
 [[package]]
@@ -1029,6 +1038,13 @@ name = "helium_io"
 version = "0.1.0"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "helium_physics"
+version = "0.1.0"
+dependencies = [
+ "cgmath",
 ]
 
 [[package]]

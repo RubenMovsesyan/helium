@@ -1,13 +1,11 @@
-use helium_io::load_shader;
-
-use std::{borrow::Cow, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use wgpu::{
-    BindGroupLayout, BlendState, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState,
-    DepthStencilState, Device, Face, FragmentState, FrontFace, MultisampleState,
+    include_wgsl, BindGroupLayout, BlendState, ColorTargetState, ColorWrites, CompareFunction,
+    DepthBiasState, DepthStencilState, Device, Face, FragmentState, FrontFace, MultisampleState,
     PipelineCompilationOptions, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor,
-    ShaderSource, StencilState, SurfaceConfiguration, VertexState,
+    PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, StencilState,
+    SurfaceConfiguration, VertexState,
 };
 
 use super::{instance::InstanceRaw, vertex::Vertex};
@@ -21,8 +19,6 @@ impl HeliumRenderPipeline {
         device: &Device,
         config: &SurfaceConfiguration,
         name: String,
-        vertex_shader_path: P,
-        fragment_shader_path: P,
     ) -> Arc<RenderPipeline>
     where
         V: Vertex,
@@ -34,19 +30,11 @@ impl HeliumRenderPipeline {
             push_constant_ranges: &[],
         });
 
-        let vertex_shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some(&(name.clone() + " Vertex Shader")),
-            source: ShaderSource::Wgsl(Cow::from(
-                load_shader(vertex_shader_path).unwrap().as_str(),
-            )),
-        });
+        let vertex_shader =
+            device.create_shader_module(include_wgsl!("../../shaders/vertex_shader.wgsl"));
 
-        let fragment_shader = device.create_shader_module(ShaderModuleDescriptor {
-            label: Some(&(name.clone() + " Fragment Shader")),
-            source: ShaderSource::Wgsl(Cow::from(
-                load_shader(fragment_shader_path).unwrap().as_str(),
-            )),
-        });
+        let fragment_shader =
+            device.create_shader_module(include_wgsl!("../../shaders/fragment_shader.wgsl"));
 
         Arc::new(device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some(&(name + " Render Pipeline")),

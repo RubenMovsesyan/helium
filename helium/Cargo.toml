@@ -5,7 +5,9 @@ edition = "2021"
 
 [dependencies]
 cgmath = "0.18.0"
+helium_collisions = { version = "0.1.0", path = "../helium_collisions" }
 helium_ecs = { version = "0.1.0", path = "../helium_ecs" }
+helium_physics = { version = "0.1.0", path = "../helium_physics" }
 helium_renderer = { path = "../helium_renderer" }
 log = "0.4.25"
 pretty_env_logger = "0.5.0"

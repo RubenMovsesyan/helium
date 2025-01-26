@@ -2,6 +2,7 @@ use crate::entity::Entity;
 use std::{any::Any, cell::RefCell, collections::HashMap};
 
 pub trait ComponentVec {
+    #[allow(unused)]
     fn remove(&mut self, entity: Entity);
 
     fn as_any(&self) -> &dyn Any;

@@ -8,6 +8,14 @@ fn add_model(manager: &mut HeliumManager) {
     );
 
     manager.add_component(suzzane, Label("Suzzane".to_string()));
+    manager.add_component(
+        suzzane,
+        Gravity::new(Vector3 {
+            x: 0.0,
+            y: -9.8,
+            z: 0.0,
+        }),
+    );
 
     let cube = manager.create_object(
         Model3d::from_obj("./assets/cube.obj".to_string()),
@@ -40,7 +48,7 @@ fn add_camera(manager: &mut HeliumManager) {
 fn update_model(manager: &mut HeliumManager) {
     let labels = manager.query::<Label>();
 
-    let mut suzzane = None;
+    // let mut suzzane = None;
     let mut cube = None;
 
     let entities_with_labels = manager.entities_with::<Label>(|label| {
@@ -50,7 +58,7 @@ fn update_model(manager: &mut HeliumManager) {
     for entity in entities_with_labels {
         if let Some(label) = labels.get(&entity) {
             if label == &Label("Suzzane".to_string()) {
-                suzzane = Some(entity);
+                // suzzane = Some(entity);
             } else if label == &Label("Cube".to_string()) {
                 cube = Some(entity);
             }
@@ -59,14 +67,14 @@ fn update_model(manager: &mut HeliumManager) {
 
     drop(labels);
 
-    manager.set_position(
-        suzzane.unwrap(),
-        Vector3 {
-            x: 0.0,
-            y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
-            z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
-        },
-    );
+    // manager.set_position(
+    //     suzzane.unwrap(),
+    //     Vector3 {
+    //         x: 0.0,
+    //         y: 1.0 * f32::sin(manager.time.elapsed().as_secs_f32()),
+    //         z: 1.0 * f32::cos(manager.time.elapsed().as_secs_f32()),
+    //     },
+    // );
 
     manager.set_rotation(
         cube.unwrap(),

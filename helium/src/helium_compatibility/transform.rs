@@ -5,7 +5,6 @@ use helium_renderer::instance::Instance;
 pub struct Transform3d {
     pub position: Vector3<f32>,
     pub rotation: Quaternion<f32>,
-    update_flag: bool,
 }
 
 impl Default for Transform3d {
@@ -13,23 +12,22 @@ impl Default for Transform3d {
         Self {
             position: Vector3::zero(),
             rotation: Quaternion::one(),
-            update_flag: true,
         }
     }
 }
 
 impl Transform3d {
     pub fn new(position: Vector3<f32>, rotation: Quaternion<f32>) -> Self {
-        Self {
-            position,
-            rotation,
-            update_flag: true,
-        }
+        Self { position, rotation }
     }
 
     // Setters
     pub fn update_position(&mut self, new_position: Vector3<f32>) {
         self.position = new_position;
+    }
+
+    pub fn add_position(&mut self, position_add: Vector3<f32>) {
+        self.position += position_add;
     }
 
     pub fn update_rotation(&mut self, new_rotation: Quaternion<f32>) {

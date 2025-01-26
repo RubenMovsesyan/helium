@@ -22,7 +22,7 @@ pub use wgpu_text::{
 };
 
 // winit imports
-use winit::{dpi::PhysicalSize, event::WindowEvent, window::Window};
+use winit::{dpi::PhysicalSize, window::Window};
 
 // logging
 use log::*;
@@ -303,8 +303,6 @@ impl HeliumState {
             &device,
             &config,
             String::from("Model"),
-            "./helium_renderer/src/shaders/vertex_shader.wgsl",
-            "./helium_renderer/src/shaders/fragment_shader.wgsl",
         );
 
         let obj_models = Vec::new();
@@ -392,23 +390,6 @@ impl HeliumState {
         self.depth_texture = HeliumTexture::create_depth_texture(&self.device, &self.config);
 
         info!("Resized to: {:?}", new_size);
-    }
-
-    // Run any state updates here
-    pub fn update(&mut self) {
-        // self.camera_controller.update_camera(&mut self.camera);
-        // self.camera.update_view_proj();
-        // self.queue.write_buffer(
-        //     &self.camera.get_buffer(),
-        //     0,
-        //     bytemuck::cast_slice(&[*self.camera.get_uniform()]),
-        // );
-    }
-
-    // Call this to handle input
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
-        // self.camera_controller.process_events(event)
-        false
     }
 
     // Call this when requesting redraw

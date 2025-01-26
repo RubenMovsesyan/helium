@@ -1,5 +1,5 @@
 [workspace]
 members = [ 
-  "helium", "helium_ecs", "helium_io", "helium_renderer",
+  "helium", "helium_collisions", "helium_ecs", "helium_io", "helium_physics", "helium_renderer",
 ]
 resolver = "2"

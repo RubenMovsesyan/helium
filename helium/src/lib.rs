@@ -27,8 +27,10 @@ use winit::{
 };
 
 // Helium compatibility imports
+pub use helium_collisions::collider::{Collider, RectangleCollider, StationaryPlaneCollider};
 pub use helium_compatibility::{Camera3d, CameraController, Label, Model3d, Transform3d};
 pub use helium_ecs::{Entity, HeliumECS};
+pub use helium_physics::gravity::Gravity;
 pub use helium_renderer::{instance::Instance, HeliumRenderer, HeliumState};
 mod helium_compatibility;
 
@@ -122,10 +124,6 @@ impl HeliumManager {
 
     /// Used internally to update the camera position
     pub fn move_camera_to_render(&self, camera: &Camera3d) {
-        // let camera_id = self.camera_id.as_ref().unwrap().clone();
-        // let cameras = self.query::<Camera3d>();
-        // let camera = cameras.get(&camera_id).unwrap().clone();
-
         self.renderer_instance.lock().unwrap().state.update_camera(
             camera.eye,
             camera.target,
@@ -324,6 +322,64 @@ impl HeliumManager {
     }
 }
 
+// Internal function for handling collisions if they are turned on
+fn handle_collisions(manager: &mut HeliumManager) {
+    let stationary_plane_colliders = manager.query::<StationaryPlaneCollider>();
+    let mut rectangle_colliders = manager.query_mut::<RectangleCollider>();
+    let mut gravities = manager.query_mut::<Gravity>();
+
+    let mut transform_list = Vec::new();
+
+    for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
+        for (_, plane_collider) in stationary_plane_colliders.iter() {
+            if rectangle_colider.is_colliding(plane_collider) {
+                rectangle_colider.snap(plane_collider);
+                transform_list.push(*entity);
+
+                if let Some(gravity) = gravities.get_mut(entity) {
+                    gravity.kill_velocity();
+                }
+            }
+        }
+    }
+
+    let rectangle_colliders = manager.query::<RectangleCollider>();
+    let mut transforms = manager.query_mut::<Transform3d>();
+
+    for entity in transform_list {
+        let new_origin = rectangle_colliders.get(&entity).unwrap().origin;
+
+        if let Some(transform) = transforms.get_mut(&entity) {
+            transform.update_position(new_origin);
+
+            manager.move_transform_to_renderer(entity);
+        }
+    }
+}
+
+fn handle_gravity(manager: &mut HeliumManager) {
+    let mut transforms = manager.query_mut::<Transform3d>();
+    let mut gravities = manager.query_mut::<Gravity>();
+
+    let mut entity_update_list = Vec::new();
+    for (entity, gravity) in gravities.iter_mut() {
+        gravity.update_gravity(&manager.delta_time);
+        if let Some(transform) = transforms.get_mut(entity) {
+            transform.add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
+            entity_update_list.push(*entity);
+            // manager.move_transform_to_renderer(*entity);
+        }
+    }
+
+    drop(transforms);
+
+    entity_update_list
+        .iter()
+        .for_each(|entity| manager.move_transform_to_renderer(*entity));
+}
+
+// Helium instance
+
 pub struct Helium {
     /// This is the Helium window that opens
     event_loop: Option<EventLoop<()>>,
@@ -343,8 +399,11 @@ pub struct Helium {
     update_thread: Option<thread::JoinHandle<()>>,
     /// Boolean to keep track of the running thread
     event_loop_working: Arc<Mutex<bool>>,
-    // Time to keep track of fps
+    /// Time to keep track of fps
     fps: Instant,
+
+    /// Optional components
+    colliders: Arc<Mutex<Option<UpdateFunction>>>,
 }
 
 impl Helium {
@@ -362,6 +421,7 @@ impl Helium {
             update_thread: None,
             event_loop_working: Arc::new(Mutex::new(false)),
             fps: Instant::now(),
+            colliders: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -440,12 +500,13 @@ impl ApplicationHandler for Helium {
             self.window.as_ref().unwrap().clone(),
         ))));
 
-        // This is the main update loop of the game
+        // Create arc clones to pass to the ecs
         let startup_functions_clone = self.startup_functions.clone();
         let update_functions_clone = self.update_functions.clone();
         let input_functions_clone = self.input_functions.clone();
         let renderer_clone = self.renderer.as_ref().unwrap().clone();
         let event_handler_clone = self.event_handler.clone();
+        let colliders_clone = self.colliders.clone();
 
         // For making sure this thread ends as soon as the main thread ends
         let event_loop_working_clone = self.event_loop_working.clone();
@@ -501,6 +562,15 @@ impl ApplicationHandler for Helium {
 
                 drop(cameras);
                 drop(camera_controllers);
+
+                // Handle collisions
+                if let Some(collider_function) = *colliders_clone.lock().unwrap() {
+                    collider_function(&mut manager);
+                }
+
+                // Handle Gravity
+                handle_gravity(&mut manager);
+
                 manager.delta_time = Instant::now();
 
                 if *event_loop_working_clone.lock().unwrap() == false {

@@ -27,10 +27,12 @@ impl World {
         entity_id
     }
 
+    #[allow(unused)]
     pub fn get_num_entities(&self) -> Entity {
         self.num_entities
     }
 
+    #[allow(unused)]
     pub fn remove_entity(&mut self, entity: Entity) {
         for component_map in self.component_maps.iter_mut() {
             component_map.remove(entity);
