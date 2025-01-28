@@ -1,4 +1,4 @@
-use cgmath::{Point3, Vector3};
+use cgmath::Point3;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -10,6 +10,13 @@ pub struct Lights {
     lights: Vec<Light>,
     buffer: Option<Buffer>,
     bind_group: Option<BindGroup>,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct LightRaw {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
 }
 
 impl Lights {
@@ -52,23 +59,25 @@ impl Lights {
         let mut light_buffer = Vec::new();
 
         for light in self.lights.iter() {
-            light_buffer.push([
-                light.position.x,
-                light.position.y,
-                light.position.z,
-                0.0,
-                light.color.0,
-                light.color.1,
-                light.color.2,
-                0.0,
-            ]);
+            light_buffer.push(LightRaw {
+                position: [light.position.x, light.position.y, light.position.z],
+                color: [light.color.0, light.color.1, light.color.2],
+            });
+            // light_buffer.push([
+            //     light.position.x,
+            //     light.position.y,
+            //     light.position.z,
+            //     light.color.0,
+            //     light.color.1,
+            //     light.color.2,
+            // ]);
         }
 
-        let lights_raw: &[f32] = bytemuck::cast_slice(light_buffer.as_flattened());
+        // let lights_raw: &[f32] = bytemuck::cast_slice(light_buffer.as_flattened());
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Lights Buffer"),
-            contents: bytemuck::cast_slice(lights_raw),
+            contents: bytemuck::cast_slice(&light_buffer),
             usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
         });
 

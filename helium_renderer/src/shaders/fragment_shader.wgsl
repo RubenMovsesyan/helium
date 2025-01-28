@@ -20,28 +20,25 @@ struct CameraUniform {
     view_proj: mat4x4<f32>,
 };
 
+struct Light {
+    position: array<f32, 3>,
+    color: array<f32, 3>,
+};
+
 @group(1) @binding(0)
 var<uniform> camera: CameraUniform;
 
 @group(2) @binding(0)
-var<storage, read> lights: array<f32>;
+var<storage, read> lights: array<Light>;
+// var<storage, read> lights: array<f32>;
 
 @fragment
 fn main(in: VertexOutput) -> @location(0) vec4<f32> {
     let object_color: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
     var result: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-    for (var light_index: u32 = 0; light_index < arrayLength(&lights); light_index = light_index + 8) {
-        let position = vec3<f32>( 
-            lights[light_index],
-            lights[light_index + 1],
-            lights[light_index + 2],
-        );
-
-        let color = vec3<f32>(
-            lights[light_index + 4],
-            lights[light_index + 5],
-            lights[light_index + 6]
-        );
+    for (var light_index: u32 = 0; light_index < arrayLength(&lights); light_index = light_index + 1) {
+        let position = vec3<f32>(lights[light_index].position[0], lights[light_index].position[1], lights[light_index].position[2]);
+        let color = vec3<f32>(lights[light_index].color[0], lights[light_index].color[1], lights[light_index].color[2]);
         
         // Ambient lighting
         let ambient_strength = 0.01;
