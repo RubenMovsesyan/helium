@@ -62,6 +62,11 @@ impl Transform3d {
         &self.rotation
     }
 
+    pub fn set_rotation(&mut self, new_rotation: Quaternion<f32>) {
+        self.rotation = new_rotation;
+        self.update_flag = true;
+    }
+
     pub fn get_transform(&self) -> (&Vector3<f32>, &Quaternion<f32>) {
         (&self.position, &self.rotation)
     }
@@ -77,10 +82,10 @@ impl Transform3d {
         transform.update_flag = true;
     }
 
-    pub fn set_rotation(transform: &mut Self, rotation: Quaternion<f32>) {
-        transform.rotation = rotation;
-        transform.update_flag = true;
-    }
+    // pub fn set_rotation(transform: &mut Self, rotation: Quaternion<f32>) {
+    //     transform.rotation = rotation;
+    //     transform.update_flag = true;
+    // }
 }
 
 impl Into<Instance> for Transform3d {

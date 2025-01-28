@@ -1,7 +1,6 @@
 // std
 use std::{sync::Arc, time::Instant};
 
-use cgmath::{One, Quaternion, Vector3};
 // Logging imports
 
 use wgpu::{Device, Queue};

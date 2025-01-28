@@ -240,7 +240,7 @@ impl HeliumManager {
         }
     }
 
-    #[deprecated]
+    // #[deprecated]
     pub fn set_rotation(&mut self, entity: Entity, rotation: Quaternion<f32>) {
         let object_index = self
             .ecs_instance
@@ -375,27 +375,26 @@ fn handle_gravity_collisions(manager: &mut HeliumManager) {
     };
 
     for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
-        for (_, plane_collider) in stationary_plane_colliders.iter() {
-            if rectangle_colider.is_colliding_y(plane_collider) {
-                // info!("Colliding! {:#?} {:#?}", rectangle_colider, plane_collider);
-                rectangle_colider.snap_y(plane_collider);
+        if let Some(gravity) = gravities.get_mut(entity) {
+            if let Some(transform) = transforms.get_mut(&entity) {
+                gravity.update_gravity(&manager.delta_time);
+                for (_, plane_collider) in stationary_plane_colliders.iter() {
+                    if rectangle_colider.is_colliding(plane_collider) {
+                        rectangle_colider.snap_y(plane_collider);
 
-                if let Some(gravity) = gravities.get_mut(entity) {
-                    gravity.kill_velocity();
+                        gravity.kill_velocity();
+                    }
                 }
-
-                if let Some(transform) = transforms.get_mut(&entity) {
-                    transform.update_position(*rectangle_colider.origin());
-                }
+                transform
+                    .add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
+                rectangle_colider.set_origin(&transform.position);
             }
-        }
-
-        if let Some(transform) = transforms.get(&entity) {
-            rectangle_colider.origin = transform.position;
         }
     }
 }
 
+#[allow(unused)]
+#[deprecated]
 fn handle_gravity(manager: &mut HeliumManager) {
     let mut transforms = match manager.query_mut::<Transform3d>() {
         Some(transforms) => transforms,
@@ -634,7 +633,7 @@ impl ApplicationHandler for Helium {
                 handle_gravity_collisions(&mut manager);
 
                 // Handle Gravity
-                handle_gravity(&mut manager);
+                // handle_gravity(&mut manager);
 
                 // Update all the changed transforms
                 update_transforms_to_renderer(&mut manager);

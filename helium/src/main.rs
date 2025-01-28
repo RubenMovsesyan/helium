@@ -16,18 +16,19 @@ fn add_model(manager: &mut HeliumManager) {
             z: 0.0,
         }),
     );
+
     manager.add_component(
         suzzane,
-        RectangleCollider {
-            width: 1.0,
-            height: 2.0,
-            length: 1.0,
-            origin: Vector3 {
+        RectangleCollider::new(
+            1.0,
+            2.0,
+            1.0,
+            Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
             },
-        },
+        ),
     );
 
     let cube = manager.create_object(
@@ -103,6 +104,25 @@ fn add_camera(manager: &mut HeliumManager) {
 }
 
 fn update_model(manager: &mut HeliumManager) {
+    // let labels = manager.query::<Label>().unwrap();
+    // let mut transforms = manager.query_mut::<Transform3d>().unwrap();
+
+    // for (entity, label) in labels.iter() {
+    //     if label == &Label("Cube".to_string()) {
+    //         if let Some(cube_transform) = transforms.get_mut(entity) {
+    //             cube_transform.set_rotation(Quaternion::from_axis_angle(
+    //                 Vector3 {
+    //                     x: 1.0,
+    //                     y: 1.0,
+    //                     z: 1.0,
+    //                 }
+    //                 .normalize(),
+    //                 Rad(manager.time.elapsed().as_secs_f32()),
+    //             ));
+    //         }
+    //     }
+    // }
+
     let labels = manager.query::<Label>().unwrap();
 
     // let mut suzzane = None;

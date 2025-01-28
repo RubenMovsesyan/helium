@@ -1,10 +1,9 @@
 use std::{
-    cell::{Ref, RefCell, RefMut},
+    cell::{Ref, RefMut},
     collections::HashMap,
 };
 
 pub use entity::Entity;
-use log::*;
 use world::World;
 
 mod component;
@@ -120,6 +119,7 @@ impl HeliumECS {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use log::*;
 
     #[test]
     fn test_ecs_struct() {

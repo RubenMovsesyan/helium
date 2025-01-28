@@ -1,6 +1,12 @@
 use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
 use log::*;
-use std::ops::Range;
+use std::{any::Any, ops::Range};
+
+const PLANE_LOCAL_NORMAL: Vector3<f32> = Vector3 {
+    x: 0.0,
+    y: 1.0,
+    z: 0.0,
+};
 
 pub trait Collider {
     fn is_colliding(&self, other: &dyn Collider) -> bool;
@@ -22,29 +28,128 @@ pub trait Collider {
     fn width(&self) -> f32;
     fn height(&self) -> f32;
     fn length(&self) -> f32;
+
+    fn set_origin(&mut self, new_origin: &Vector3<f32>);
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(PartialEq, Debug)]
 pub struct RectangleCollider {
     // x
-    pub width: f32,
+    width: f32,
     // y
-    pub height: f32,
+    height: f32,
     // z
-    pub length: f32,
+    length: f32,
     // origin
-    pub origin: Vector3<f32>,
+    origin: Vector3<f32>,
+
+    vertices: [Vector3<f32>; 8],
+}
+
+impl RectangleCollider {
+    fn compute_vertices(
+        width: f32,
+        height: f32,
+        length: f32,
+        origin: &Vector3<f32>,
+    ) -> [Vector3<f32>; 8] {
+        let (width_2, height_2, length_2) = (width / 2.0, height / 2.0, length / 2.0);
+
+        let vertices = [
+            Vector3 {
+                x: origin.x + width_2,
+                y: origin.y + height_2,
+                z: origin.z + length_2,
+            },
+            Vector3 {
+                x: origin.x + width_2,
+                y: origin.y + height_2,
+                z: origin.z - length_2,
+            },
+            Vector3 {
+                x: origin.x - width_2,
+                y: origin.y + height_2,
+                z: origin.z + length_2,
+            },
+            Vector3 {
+                x: origin.x - width_2,
+                y: origin.y + height_2,
+                z: origin.z - length_2,
+            },
+            Vector3 {
+                x: origin.x + width_2,
+                y: origin.y - height_2,
+                z: origin.z + length_2,
+            },
+            Vector3 {
+                x: origin.x + width_2,
+                y: origin.y - height_2,
+                z: origin.z - length_2,
+            },
+            Vector3 {
+                x: origin.x - width_2,
+                y: origin.y - height_2,
+                z: origin.z + length_2,
+            },
+            Vector3 {
+                x: origin.x - width_2,
+                y: origin.y - height_2,
+                z: origin.z - length_2,
+            },
+        ];
+
+        vertices
+    }
+
+    pub fn new(width: f32, height: f32, length: f32, origin: Vector3<f32>) -> Self {
+        let vertices = Self::compute_vertices(width, height, length, &origin);
+        Self {
+            width,
+            height,
+            length,
+            origin,
+            vertices,
+        }
+    }
 }
 
 impl Collider for RectangleCollider {
     fn is_colliding(&self, other: &dyn Collider) -> bool {
-        let (width_2, height_2, length_2) =
-            (self.width / 2.0, self.height / 2.0, self.length / 2.0);
+        // let (width_2, height_2, length_2) =
+        //     (self.width / 2.0, self.height / 2.0, self.length / 2.0);
+
+        // HACK: this is bad and needs to be fixed
+        if let Some(plane) = other.as_any().downcast_ref::<StationaryPlaneCollider>() {
+            let mut distances = Vec::new();
+
+            for verticie in self.vertices {
+                distances.push(plane.local_normal.dot(verticie - plane.origin));
+            }
+
+            if distances[0] > 0.0 {
+                for distance in distances {
+                    if distance < 0.0 {
+                        return true;
+                    }
+                }
+            } else if distances[0] < 0.0 {
+                for distance in distances {
+                    if distance > 0.0 {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
 
         // Make sure the range of our rectangular collider is contained within the other collider
-        other.contains_x(&((self.origin.x - width_2)..(self.origin.x + width_2)))
-            && other.contains_y(&((self.origin.y - height_2)..(self.origin.y + height_2)))
-            && other.contains_z(&((self.origin.z - length_2)..(self.origin.z + length_2)))
+        // other.contains_x(&((self.origin.x - width_2)..(self.origin.x + width_2)))
+        //     && other.contains_y(&((self.origin.y - height_2)..(self.origin.y + height_2)))
+        //     && other.contains_z(&((self.origin.z - length_2)..(self.origin.z + length_2)))
+        false
     }
 
     fn is_colliding_x(&self, other: &dyn Collider) -> bool {
@@ -116,6 +221,8 @@ impl Collider for RectangleCollider {
         } else if self.origin.y > other.origin().y {
             self.origin.z = other.origin().z + other_length_2 + self_length_2;
         }
+
+        self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
     }
 
     fn snap_x(&mut self, other: &dyn Collider) {
@@ -129,6 +236,8 @@ impl Collider for RectangleCollider {
         } else if self.origin.x > other.origin().x {
             self.origin.x = other.origin().x + other_width_2 + self_width_2;
         }
+
+        self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
     }
 
     fn snap_y(&mut self, other: &dyn Collider) {
@@ -142,6 +251,8 @@ impl Collider for RectangleCollider {
         } else if self.origin.y > other.origin().y {
             self.origin.y = other.origin().y + other_height_2 + self_height_2;
         }
+
+        self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
     }
 
     fn snap_z(&mut self, other: &dyn Collider) {
@@ -155,6 +266,13 @@ impl Collider for RectangleCollider {
         } else if self.origin.z > other.origin().z {
             self.origin.z = other.origin().z + other_length_2 + self_length_2;
         }
+
+        self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
+    }
+
+    fn set_origin(&mut self, new_origin: &Vector3<f32>) {
+        self.origin = new_origin.clone();
+        self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
     }
 
     fn origin(&self) -> &Vector3<f32> {
@@ -172,6 +290,10 @@ impl Collider for RectangleCollider {
     fn length(&self) -> f32 {
         self.length
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
 }
 
 #[derive(Debug)]
@@ -181,6 +303,7 @@ pub struct StationaryPlaneCollider {
     pub origin: Vector3<f32>,
 
     plane_points: [Point3<f32>; 4],
+    local_normal: Vector3<f32>,
 }
 
 impl StationaryPlaneCollider {
@@ -189,10 +312,11 @@ impl StationaryPlaneCollider {
         width: f32,
         length: f32,
         origin: Vector3<f32>,
-        orientation: Quaternion<f32>,
+        mut orientation: Quaternion<f32>,
     ) -> Self {
         let width_2 = width / 2.0;
         let length_2 = length / 2.0;
+        orientation = orientation.normalize();
         let mut plane_points = [
             Point3 {
                 x: -width_2,
@@ -217,7 +341,7 @@ impl StationaryPlaneCollider {
         ];
 
         for point in plane_points.iter_mut() {
-            *point = orientation.normalize().rotate_point(*point);
+            *point = orientation.rotate_point(*point);
             *point += origin;
         }
 
@@ -226,6 +350,7 @@ impl StationaryPlaneCollider {
             length,
             origin,
             plane_points,
+            local_normal: orientation.rotate_vector(PLANE_LOCAL_NORMAL).normalize(),
         }
     }
 }
@@ -338,6 +463,9 @@ impl Collider for StationaryPlaneCollider {
     fn snap_y(&mut self, _other: &dyn Collider) {}
     fn snap_z(&mut self, _other: &dyn Collider) {}
 
+    /// No setting on stationary colliders
+    fn set_origin(&mut self, _new_origin: &Vector3<f32>) {}
+
     fn origin(&self) -> &Vector3<f32> {
         &self.origin
     }
@@ -353,6 +481,10 @@ impl Collider for StationaryPlaneCollider {
     fn length(&self) -> f32 {
         self.length
     }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
 }
 
 #[cfg(test)]
@@ -362,174 +494,159 @@ mod tests {
 
     #[test]
     fn test_rectangle_colliders_x() {
-        let collider_1 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3::zero(),
-        };
+        let collider_1 = RectangleCollider::new(5.0, 5.0, 5.0, Vector3::zero());
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 4.0,
                 y: 0.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 6.0,
                 y: 0.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(!collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 5.0,
                 y: 0.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
     }
 
     #[test]
     fn test_rectangle_colliders_y() {
-        let collider_1 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3::zero(),
-        };
+        let collider_1 = RectangleCollider::new(5.0, 5.0, 5.0, Vector3::zero());
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 4.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 6.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(!collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 5.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
     }
 
     #[test]
     fn test_rectangle_colliders_z() {
-        let collider_1 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3::zero(),
-        };
+        let collider_1 = RectangleCollider::new(5.0, 5.0, 5.0, Vector3::zero());
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: 4.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: 6.0,
             },
-        };
+        );
 
         assert!(!collider_1.is_colliding(&collider_2));
 
-        let collider_2 = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 0.0,
                 z: 5.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
     }
 
     #[test]
     fn test_rectangle_rectangle_snap() {
-        let mut collider_1 = RectangleCollider {
-            width: 3.0,
-            height: 6.0,
-            length: 1.0,
-            origin: Vector3 {
+        let mut collider_1 = RectangleCollider::new(
+            3.0,
+            6.0,
+            1.0,
+            Vector3 {
                 x: 3.5,
                 y: 4.0,
                 z: 0.0,
             },
-        };
+        );
 
-        let collider_2 = RectangleCollider {
-            width: 4.0,
-            height: 4.0,
-            length: 1.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            4.0,
+            4.0,
+            1.0,
+            Vector3 {
                 x: 6.0,
                 y: 7.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
@@ -537,42 +654,42 @@ mod tests {
 
         assert_eq!(
             collider_1,
-            RectangleCollider {
-                width: 3.0,
-                height: 6.0,
-                length: 1.0,
-                origin: Vector3 {
+            RectangleCollider::new(
+                3.0,
+                6.0,
+                1.0,
+                Vector3 {
                     x: 2.5,
                     y: 2.0,
                     z: 0.0,
                 }
-            }
+            )
         );
     }
 
     #[test]
     fn test_rectangle_rectangle_snap_x() {
-        let mut collider_1 = RectangleCollider {
-            width: 3.0,
-            height: 6.0,
-            length: 1.0,
-            origin: Vector3 {
+        let mut collider_1 = RectangleCollider::new(
+            3.0,
+            6.0,
+            1.0,
+            Vector3 {
                 x: 3.5,
                 y: 4.0,
                 z: 0.0,
             },
-        };
+        );
 
-        let collider_2 = RectangleCollider {
-            width: 4.0,
-            height: 4.0,
-            length: 1.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            4.0,
+            4.0,
+            1.0,
+            Vector3 {
                 x: 6.0,
                 y: 7.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
@@ -580,42 +697,42 @@ mod tests {
 
         assert_eq!(
             collider_1,
-            RectangleCollider {
-                width: 3.0,
-                height: 6.0,
-                length: 1.0,
-                origin: Vector3 {
+            RectangleCollider::new(
+                3.0,
+                6.0,
+                1.0,
+                Vector3 {
                     x: 2.5,
                     y: 4.0,
                     z: 0.0,
                 }
-            }
+            )
         );
     }
 
     #[test]
     fn test_rectangle_rectangle_snap_y() {
-        let mut collider_1 = RectangleCollider {
-            width: 3.0,
-            height: 6.0,
-            length: 1.0,
-            origin: Vector3 {
+        let mut collider_1 = RectangleCollider::new(
+            3.0,
+            6.0,
+            1.0,
+            Vector3 {
                 x: 3.5,
                 y: 4.0,
                 z: 0.0,
             },
-        };
+        );
 
-        let collider_2 = RectangleCollider {
-            width: 4.0,
-            height: 4.0,
-            length: 1.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            4.0,
+            4.0,
+            1.0,
+            Vector3 {
                 x: 6.0,
                 y: 7.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
@@ -623,42 +740,42 @@ mod tests {
 
         assert_eq!(
             collider_1,
-            RectangleCollider {
-                width: 3.0,
-                height: 6.0,
-                length: 1.0,
-                origin: Vector3 {
+            RectangleCollider::new(
+                3.0,
+                6.0,
+                1.0,
+                Vector3 {
                     x: 3.5,
                     y: 2.0,
                     z: 0.0,
                 }
-            }
+            )
         );
     }
 
     #[test]
     fn test_rectangle_rectangle_snap_z() {
-        let mut collider_1 = RectangleCollider {
-            width: 3.0,
-            height: 6.0,
-            length: 1.0,
-            origin: Vector3 {
+        let mut collider_1 = RectangleCollider::new(
+            3.0,
+            6.0,
+            1.0,
+            Vector3 {
                 x: 3.5,
                 y: 4.0,
                 z: 0.0,
             },
-        };
+        );
 
-        let collider_2 = RectangleCollider {
-            width: 4.0,
-            height: 4.0,
-            length: 1.0,
-            origin: Vector3 {
+        let collider_2 = RectangleCollider::new(
+            4.0,
+            4.0,
+            1.0,
+            Vector3 {
                 x: 6.0,
                 y: 7.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(collider_1.is_colliding(&collider_2));
 
@@ -666,31 +783,31 @@ mod tests {
 
         assert_eq!(
             collider_1,
-            RectangleCollider {
-                width: 3.0,
-                height: 6.0,
-                length: 1.0,
-                origin: Vector3 {
+            RectangleCollider::new(
+                3.0,
+                6.0,
+                1.0,
+                Vector3 {
                     x: 3.5,
                     y: 4.0,
                     z: 0.0,
                 }
-            }
+            )
         );
     }
 
     #[test]
     fn test_rectangle_plane_collision() {
-        let rectangle_collider = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let rectangle_collider = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 2.5,
                 z: 0.0,
             },
-        };
+        );
 
         let plane_collider = StationaryPlaneCollider::new(
             10.0,
@@ -705,16 +822,16 @@ mod tests {
 
         assert!(rectangle_collider.is_colliding(&plane_collider));
 
-        let rectangle_collider = RectangleCollider {
-            width: 5.0,
-            height: 5.0,
-            length: 5.0,
-            origin: Vector3 {
+        let rectangle_collider = RectangleCollider::new(
+            5.0,
+            5.0,
+            5.0,
+            Vector3 {
                 x: 0.0,
                 y: 6.0,
                 z: 0.0,
             },
-        };
+        );
 
         assert!(!rectangle_collider.is_colliding(&plane_collider));
     }
