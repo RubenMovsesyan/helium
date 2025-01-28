@@ -69,6 +69,24 @@ fn add_model(manager: &mut HeliumManager) {
             Quaternion::one(),
         ),
     );
+
+    manager.add_light(Light::new(
+        Point3 {
+            x: 5.0,
+            y: 5.0,
+            z: 0.0,
+        },
+        (1.0, 0.1, 0.1),
+    ));
+
+    manager.add_light(Light::new(
+        Point3 {
+            x: -5.0,
+            y: 5.0,
+            z: 0.0,
+        },
+        (0.1, 0.1, 1.0),
+    ));
 }
 
 fn add_camera(manager: &mut HeliumManager) {

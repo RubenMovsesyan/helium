@@ -140,8 +140,8 @@ mod tests {
         ecs.add_component(player, Health(100));
         ecs.add_component(player, Player);
 
-        let mut healths = ecs.query_mut::<Health>();
-        let names = ecs.query::<Name>();
+        let mut healths = ecs.query_mut::<Health>().unwrap();
+        let names = ecs.query::<Name>().unwrap();
         for (name, health) in healths.iter_mut().filter_map(|(health_id, health)| {
             if let Some(name) = names.get(health_id) {
                 return Some((name, health));
@@ -160,7 +160,7 @@ mod tests {
 
         drop(names);
 
-        let players = ecs.query::<Player>();
+        let players = ecs.query::<Player>().unwrap();
         for health in healths.iter().filter_map(|(health_id, health)| {
             if let Some(_player) = players.get(health_id) {
                 return Some(health);

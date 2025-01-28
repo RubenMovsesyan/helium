@@ -2,7 +2,6 @@
 use cgmath::Point3;
 use cgmath::Vector3;
 use std::{iter::once, path::Path, sync::Arc};
-use wgpu::util::RenderEncoder;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 // Async
 use smol::block_on;
@@ -39,6 +38,7 @@ mod resources;
 pub use camera::Camera;
 use helium_texture::HeliumTexture;
 pub use light::Light;
+use light::Lights;
 use model::{
     instance::INSTANCE_RAW_SIZE, model_vertex::ModelVertex, render_pipeline::HeliumRenderPipeline,
     Model,
@@ -59,7 +59,7 @@ pub struct HeliumState {
     camera_active: bool,
 
     // Lighting
-    light: Light,
+    lights: Lights,
 
     // Depth texture for rendering the correct faces of a mesh
     depth_texture: HeliumTexture,
@@ -264,6 +264,10 @@ impl HeliumState {
         self.camera_active = false;
     }
 
+    pub fn add_light(&mut self, light: Light) {
+        self.lights.add_light(light, &self.device);
+    }
+
     pub fn new(window: Arc<Window>) -> Self {
         let instance = Self::create_gpu_instance();
         let surface = instance.create_surface(window.clone()).unwrap();
@@ -286,15 +290,16 @@ impl HeliumState {
         );
 
         // Temp
-        let light = Light::new(
-            Vector3 {
-                x: 10.0,
-                y: 10.0,
-                z: 10.0,
-            },
-            (1.0, 1.0, 1.0),
-            &device,
-        );
+        // let light = Light::new(
+        //     Vector3 {
+        //         x: 10.0,
+        //         y: 10.0,
+        //         z: 10.0,
+        //     },
+        //     (1.0, 1.0, 1.0),
+        //     &device,
+        // );
+        let lights = Lights::new();
 
         // let camera_controller = CameraController::new(0.2);
 
@@ -315,7 +320,7 @@ impl HeliumState {
             vec![
                 &HeliumTexture::get_layout(&device),
                 &Camera::get_camera_layout(&device),
-                &Light::get_bind_group_layout(&device),
+                &Lights::get_bind_group_layout(&device),
             ],
             &device,
             &config,
@@ -335,7 +340,7 @@ impl HeliumState {
             config,
             camera,
             camera_active: false,
-            light,
+            lights,
             depth_texture,
             render_pipeline,
             models: obj_models,
@@ -455,7 +460,7 @@ impl HeliumState {
                 render_pass.set_vertex_buffer(1, self.model_instance_buffer.slice(..));
 
                 // Lighting
-                render_pass.set_bind_group(2, self.light.get_bind_group(), &[]);
+                render_pass.set_bind_group(2, self.lights.get_bind_group(), &[]);
 
                 // Sets each of the bind groups
                 use model::draw_model::DrawModel;

@@ -1,7 +1,7 @@
 // std
 use std::{sync::Arc, time::Instant};
 
-// use cgmath::{One, Quaternion, Vector3};
+use cgmath::{One, Quaternion, Vector3};
 // Logging imports
 
 use wgpu::{Device, Queue};
@@ -15,6 +15,7 @@ pub use helium_state::model::instance;
 pub use helium_state::model::Model;
 pub use helium_state::Camera;
 pub use helium_state::HeliumState;
+pub use helium_state::Light;
 
 pub type StartupFunction = fn(&mut HeliumState);
 pub type UpdateFunction = fn(&mut HeliumState, Instant);

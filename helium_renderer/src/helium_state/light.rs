@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use cgmath::{Point3, Vector3};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -6,33 +6,98 @@ use wgpu::{
     ShaderStages,
 };
 
-pub struct Light {
-    position: Vector3<f32>,
-    color: (f32, f32, f32),
-    uniform: LightUniform,
-    buffer: Buffer,
-    bind_group_layout: BindGroupLayout,
-    bind_group: BindGroup,
+pub struct Lights {
+    lights: Vec<Light>,
+    buffer: Option<Buffer>,
+    bind_group: Option<BindGroup>,
 }
 
-impl Light {
-    pub fn new(position: Vector3<f32>, color: (f32, f32, f32), device: &Device) -> Self {
-        let uniform = Self::construct_uniform(position, color);
-        let buffer = Self::create_light_buffer(uniform, device);
-        let bind_group_layout = Self::get_bind_group_layout(device);
-        let bind_group = Self::create_bind_group(&bind_group_layout, &buffer, device);
-
+impl Lights {
+    pub fn new() -> Self {
         Self {
-            position,
-            color,
-            uniform,
-            buffer,
-            bind_group_layout,
-            bind_group,
+            lights: Vec::new(),
+            buffer: None,
+            bind_group: None,
         }
     }
 
-    pub fn update_position(&mut self, position: Vector3<f32>) -> &mut Self {
+    pub fn add_light(&mut self, light: Light, device: &Device) {
+        self.lights.push(light);
+        self.adjust_buffer(device);
+    }
+
+    pub fn get_bind_group_layout(device: &Device) -> BindGroupLayout {
+        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Lights Bind Group"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+    }
+
+    pub fn get_bind_group(&self) -> &BindGroup {
+        self.bind_group.as_ref().unwrap()
+    }
+
+    /// Converts the lights vector into a storage buffer to be accessed
+    /// On the GPU
+    fn adjust_buffer(&mut self, device: &Device) {
+        let mut light_buffer = Vec::new();
+
+        for light in self.lights.iter() {
+            light_buffer.push([
+                light.position.x,
+                light.position.y,
+                light.position.z,
+                0.0,
+                light.color.0,
+                light.color.1,
+                light.color.2,
+                0.0,
+            ]);
+        }
+
+        let lights_raw: &[f32] = bytemuck::cast_slice(light_buffer.as_flattened());
+
+        let buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Lights Buffer"),
+            contents: bytemuck::cast_slice(lights_raw),
+            usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        });
+
+        self.buffer = Some(buffer);
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Lights Bind Group"),
+            layout: &Self::get_bind_group_layout(device),
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: self.buffer.as_ref().unwrap().as_entire_binding(),
+            }],
+        });
+
+        self.bind_group = Some(bind_group);
+    }
+}
+
+pub struct Light {
+    position: Point3<f32>,
+    color: (f32, f32, f32),
+}
+
+impl Light {
+    pub fn new(position: Point3<f32>, color: (f32, f32, f32)) -> Self {
+        Self { position, color }
+    }
+
+    pub fn update_position(&mut self, position: Point3<f32>) -> &mut Self {
         self.position = position;
         self
     }
@@ -41,65 +106,4 @@ impl Light {
         self.color = color;
         self
     }
-
-    pub fn construct_uniform(position: Vector3<f32>, color: (f32, f32, f32)) -> LightUniform {
-        LightUniform {
-            position: [position.x, position.y, position.z],
-            _padding: 0,
-            color: [color.0, color.1, color.2],
-            _color_padding: 0,
-        }
-    }
-
-    pub fn create_light_buffer(uniform: LightUniform, device: &Device) -> Buffer {
-        device.create_buffer_init(&BufferInitDescriptor {
-            label: Some("Light Buffer"),
-            contents: bytemuck::cast_slice(&[uniform]),
-            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        })
-    }
-
-    pub fn get_bind_group(&self) -> &BindGroup {
-        &self.bind_group
-    }
-
-    pub fn get_bind_group_layout(device: &Device) -> BindGroupLayout {
-        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            entries: &[BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("Light bind group layout"),
-        })
-    }
-
-    pub fn create_bind_group(
-        bind_group_layout: &BindGroupLayout,
-        light_buffer: &Buffer,
-        device: &Device,
-    ) -> BindGroup {
-        device.create_bind_group(&BindGroupDescriptor {
-            layout: bind_group_layout,
-            entries: &[BindGroupEntry {
-                binding: 0,
-                resource: light_buffer.as_entire_binding(),
-            }],
-            label: Some("Light bind group"),
-        })
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct LightUniform {
-    position: [f32; 3],
-    _padding: u32,
-    color: [f32; 3],
-    _color_padding: u32,
 }

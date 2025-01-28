@@ -1,4 +1,4 @@
-use helium_compatibility::transform;
+pub use cgmath::Point3;
 // logging
 use log::*;
 
@@ -32,7 +32,7 @@ pub use helium_collisions::collider::{Collider, RectangleCollider, StationaryPla
 pub use helium_compatibility::{Camera3d, CameraController, Label, Model3d, Transform3d};
 pub use helium_ecs::{Entity, HeliumECS};
 pub use helium_physics::gravity::Gravity;
-pub use helium_renderer::{instance::Instance, HeliumRenderer, HeliumState};
+pub use helium_renderer::{helium_state::Light, instance::Instance, HeliumRenderer, HeliumState};
 mod helium_compatibility;
 
 // Custom type aliases for simplicity
@@ -65,6 +65,14 @@ impl HeliumManager {
 
     pub fn get_render_config(&self) -> SurfaceConfiguration {
         self.renderer_instance.lock().unwrap().state.config.clone()
+    }
+
+    pub fn add_light(&mut self, light: Light) {
+        self.renderer_instance
+            .lock()
+            .unwrap()
+            .state
+            .add_light(light);
     }
 
     /// Creates a 3d camera to view the scene with. The rendering will be skipped if
