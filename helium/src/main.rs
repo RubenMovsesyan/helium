@@ -4,7 +4,14 @@ use helium::*;
 fn add_model(manager: &mut HeliumManager) {
     let suzzane = manager.create_object(
         Model3d::from_obj("./assets/suzzane.obj".to_string()),
-        Transform3d::default(),
+        Transform3d::new(
+            Vector3 {
+                x: 0.0,
+                y: 15.0,
+                z: 0.0,
+            },
+            Quaternion::one(),
+        ),
     );
 
     manager.add_component(suzzane, Label("Suzzane".to_string()));

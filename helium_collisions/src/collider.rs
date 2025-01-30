@@ -1,5 +1,4 @@
-use cgmath::{InnerSpace, Point3, Quaternion, Rotation, Vector3};
-use log::*;
+use cgmath::{InnerSpace, Quaternion, Rotation, Vector3, Zero};
 use std::{any::Any, ops::Range};
 
 const PLANE_LOCAL_NORMAL: Vector3<f32> = Vector3 {
@@ -128,21 +127,58 @@ impl Collider for RectangleCollider {
                 distances.push(plane.local_normal.dot(verticie - plane.origin));
             }
 
-            if distances[0] > 0.0 {
-                for distance in distances {
-                    if distance < 0.0 {
-                        return true;
-                    }
+            // This calculates if the rectangular collider is intersecting the plane
+            let mut sum: f32 = 0.0;
+            let mut abs_sum: f32 = 0.0;
+            for distance in distances {
+                sum += distance;
+                abs_sum += f32::abs(distance);
+            }
+            sum = f32::abs(sum);
+
+            if abs_sum != sum {
+                // Now we need to calculate if the point is in the range of the plane
+
+                // Project all the points onto the plane
+                let mut projected_points: [Vector3<f32>; 8] = [Vector3::zero(); 8];
+
+                for (index, verticie) in self.vertices.iter().enumerate() {
+                    let v = verticie - plane.origin();
+                    let dist = v.dot(plane.local_normal.normalize());
+                    let projected_point = verticie - dist * plane.local_normal.normalize();
+                    projected_points[index] = projected_point;
                 }
-            } else if distances[0] < 0.0 {
-                for distance in distances {
-                    if distance > 0.0 {
+
+                // Draw a line from each projected point to the corners of the plane
+                // Measure the angles between each sequential point and if they add up to 360 then it is projected on the plane
+                // If the angles add up to 0, then it is not projected on the plane
+                // NOTE: This approach only works for a plane like this because it is a perfect shape
+                let num_plane_points = plane.plane_points.len();
+                for projected_point in projected_points {
+                    // For every point in the plane
+                    let mut signs: [f32; 4] = [0.0; 4];
+                    for plane_point_index in 0..num_plane_points {
+                        // Find the vector from the current point to one of the points on the plane
+                        // and also the vector to the next one
+                        let vec_a = plane.plane_points[plane_point_index] - projected_point;
+                        let vec_b = plane.plane_points[(plane_point_index + 1) % num_plane_points]
+                            - projected_point;
+
+                        // This is the area of the triangle created by the vector a and b
+                        let cross = vec_a.cross(vec_b);
+                        // Find the direction of each vector relative to the normal of the plane
+                        signs[plane_point_index] = if plane.local_normal.dot(cross) < 0.0 {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                    }
+
+                    if signs == [1.0; 4] || signs == [-1.0; 4] {
                         return true;
                     }
                 }
             }
-
-            return false;
         }
 
         // Make sure the range of our rectangular collider is contained within the other collider
@@ -302,7 +338,7 @@ pub struct StationaryPlaneCollider {
     pub length: f32,
     pub origin: Vector3<f32>,
 
-    plane_points: [Point3<f32>; 4],
+    plane_points: [Vector3<f32>; 4],
     local_normal: Vector3<f32>,
 }
 
@@ -318,30 +354,30 @@ impl StationaryPlaneCollider {
         let length_2 = length / 2.0;
         orientation = orientation.normalize();
         let mut plane_points = [
-            Point3 {
-                x: -width_2,
-                y: 0.0,
-                z: -length_2,
-            },
-            Point3 {
-                x: width_2,
-                y: 0.0,
-                z: -length_2,
-            },
-            Point3 {
+            Vector3 {
                 x: -width_2,
                 y: 0.0,
                 z: length_2,
             },
-            Point3 {
+            Vector3 {
                 x: width_2,
                 y: 0.0,
                 z: length_2,
+            },
+            Vector3 {
+                x: width_2,
+                y: 0.0,
+                z: -length_2,
+            },
+            Vector3 {
+                x: -width_2,
+                y: 0.0,
+                z: -length_2,
             },
         ];
 
         for point in plane_points.iter_mut() {
-            *point = orientation.rotate_point(*point);
+            *point = orientation.rotate_vector(*point);
             *point += origin;
         }
 
