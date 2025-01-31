@@ -6,6 +6,7 @@ use wgpu::{
     ShaderStages,
 };
 
+#[allow(unused_imports)]
 use log::*;
 
 pub struct Lights {
@@ -40,9 +41,8 @@ impl Lights {
 
     // HACK: This needs to be fixed in a much better way
     pub fn update_light(&mut self, light: &Light, queue: &Queue) {
-        let index = light.index * 24;
-        // info!("Updating: {}", index);
-        // let new_buffer: &[u8] = bytemuck::cast_slice(&[light.to_raw()]);
+        use std::mem;
+        let index = light.index * mem::size_of::<LightRaw>();
 
         queue.write_buffer(
             self.buffer.as_ref().unwrap(),
@@ -77,6 +77,7 @@ impl Lights {
 
     /// Converts the lights vector into a storage buffer to be accessed
     /// On the GPU
+    /// Only use when adding or removing lights because it reconstructs the buffer
     pub fn adjust_buffer(&mut self, device: &Device) {
         let mut light_buffer = Vec::new();
 

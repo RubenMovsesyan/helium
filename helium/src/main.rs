@@ -1,5 +1,6 @@
-use cgmath::{InnerSpace, Rad, Rotation3, Vector2};
+use cgmath::{InnerSpace, Rad, Rotation3};
 use helium::*;
+#[allow(unused_imports)]
 use log::*;
 
 fn add_model(manager: &mut HeliumManager) {
