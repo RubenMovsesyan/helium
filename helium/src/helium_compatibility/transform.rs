@@ -1,7 +1,7 @@
 use cgmath::{One, Quaternion, Vector3, Zero};
 use helium_renderer::instance::Instance;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Transform3d {
     pub position: Vector3<f32>,
     pub rotation: Quaternion<f32>,

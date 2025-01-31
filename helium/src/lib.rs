@@ -1,4 +1,6 @@
+use cgmath::InnerSpace;
 pub use cgmath::Point3;
+use helium_compatibility::CAMERA_SPEED;
 // logging
 use log::*;
 
@@ -98,16 +100,16 @@ impl HeliumManager {
 
         let camera_entity = self.ecs_instance.new_entity();
         self.ecs_instance.add_component(camera_entity, camera);
-        self.ecs_instance.add_component(
-            camera_entity,
-            CameraController {
-                forward: false,
-                backward: false,
-                left: false,
-                right: false,
-                delta: (0.0, 0.0),
-            },
-        );
+        // self.ecs_instance.add_component(
+        //     camera_entity,
+        //     CameraController {
+        //         forward: false,
+        //         backward: false,
+        //         left: false,
+        //         right: false,
+        //         delta: (0.0, 0.0),
+        //     },
+        // );
         self.camera_id = Some(camera_entity);
         camera_entity
     }
@@ -376,18 +378,16 @@ fn handle_gravity_collisions(manager: &mut HeliumManager) {
 
     for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
         if let Some(gravity) = gravities.get_mut(entity) {
+            gravity.update_gravity(&manager.delta_time);
             if let Some(transform) = transforms.get_mut(&entity) {
-                gravity.update_gravity(&manager.delta_time);
                 for (_, plane_collider) in stationary_plane_colliders.iter() {
                     if rectangle_colider.is_colliding(plane_collider) {
                         rectangle_colider.snap_y(plane_collider);
-
                         gravity.kill_velocity();
                     }
                 }
                 transform
                     .add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
-                rectangle_colider.set_origin(&transform.position);
             }
         }
     }
@@ -416,34 +416,123 @@ fn handle_gravity(manager: &mut HeliumManager) {
     }
 }
 
-fn update_transforms_to_renderer(manager: &mut HeliumManager) {
+fn update_cameras(manager: &mut HeliumManager) {
     let mut transforms = match manager.query_mut::<Transform3d>() {
         Some(transforms) => transforms,
         None => return,
     };
 
-    let models = match manager.query::<Model3d>() {
-        Some(models) => models,
+    let mut cameras = match manager.query_mut::<Camera3d>() {
+        Some(cameras) => cameras,
         None => return,
     };
+
+    let mut camera_controllers = match manager.query_mut::<CameraController>() {
+        Some(controllers) => controllers,
+        None => return,
+    };
+
+    // If any of the above doesn't exist there is no point of continuing on
+
+    for (entity, controller) in camera_controllers.iter_mut() {
+        if let Some(camera) = cameras.get_mut(&entity) {
+            camera.add_yaw(-controller.delta.0);
+            camera.add_pitch(-controller.delta.1);
+            controller.delta = (0.0, 0.0);
+            manager.move_camera_to_render(camera);
+
+            if let Some(transform) = transforms.get_mut(&entity) {
+                let forward_norm = camera.target.normalize();
+
+                if controller.forward {
+                    transform.add_position(
+                        forward_norm * manager.delta_time.elapsed().as_secs_f32() * CAMERA_SPEED,
+                    );
+                }
+
+                if controller.backward {
+                    transform.add_position(
+                        -forward_norm * manager.delta_time.elapsed().as_secs_f32() * CAMERA_SPEED,
+                    );
+                }
+
+                let right = forward_norm.cross(camera.up);
+
+                if controller.left {
+                    transform.add_position(
+                        -right * manager.delta_time.elapsed().as_secs_f32() * CAMERA_SPEED,
+                    );
+                }
+
+                if controller.right {
+                    transform.add_position(
+                        right * manager.delta_time.elapsed().as_secs_f32() * CAMERA_SPEED,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn update_transforms_to_renderer(manager: &mut HeliumManager) {
+    // List of transforms to look through and update
+    let mut transforms = match manager.query_mut::<Transform3d>() {
+        Some(transforms) => transforms,
+        None => return,
+    };
+
+    // Models to update in the renderer
+    let models = manager.query::<Model3d>();
+
+    // Camera to update if it exists
+    let mut cameras = manager.query_mut::<Camera3d>();
+
+    // Rectangle Colliders to update if it exists
+    let mut colliders = manager.query_mut::<RectangleCollider>();
 
     for (entity, transform) in transforms.iter_mut() {
         if !transform.update_flag {
             continue;
         }
-        let object_index = *models
-            .get(&entity)
-            .unwrap()
-            .get_renderer_index()
-            .clone()
-            .unwrap();
 
-        manager
-            .renderer_instance
-            .lock()
-            .unwrap()
-            .state
-            .update_instances(object_index, vec![transform.clone().into()]);
+        // Update the model position
+        match models.as_ref() {
+            Some(models) => {
+                if let Some(object_index) = models.get(&entity) {
+                    manager
+                        .renderer_instance
+                        .lock()
+                        .unwrap()
+                        .state
+                        .update_instances(
+                            object_index.get_renderer_index().unwrap().clone(),
+                            vec![transform.clone().into()],
+                        );
+                }
+            }
+            None => {}
+        }
+
+        // Update the Camera position
+        match cameras.as_mut() {
+            Some(cameras) => {
+                if let Some(camera) = cameras.get_mut(&entity) {
+                    let pos = transform.get_position();
+                    camera.set_position(cgmath::point3::<f32>(pos.x, pos.y, pos.z));
+                    // manager.move_camera_to_render(camera);
+                }
+            }
+            None => {}
+        }
+
+        match colliders.as_mut() {
+            Some(colliders) => {
+                if let Some(collider) = colliders.get_mut(&entity) {
+                    collider.set_origin(transform.get_position());
+                }
+            }
+            None => {}
+        }
 
         transform.update();
     }
@@ -602,41 +691,12 @@ impl ApplicationHandler for Helium {
                     }
                 }
 
-                // HACK: handle the camera update here
-                // This can probably be done in a better place
-                // let mut camera_controllers = manager.query_mut::<CameraController>();
-                // let mut cameras = manager.query_mut::<Camera3d>();
-                if let Some(mut camera_controllers) = manager.query_mut::<CameraController>() {
-                    if let Some(mut cameras) = manager.query_mut::<Camera3d>() {
-                        let cam_and_controllers = cameras
-                            .iter_mut()
-                            .zip(camera_controllers.iter_mut())
-                            .filter_map(|(camera, controller)| Some((camera.1, controller.1)));
-
-                        for (camera, controller) in cam_and_controllers {
-                            camera.update_camera(
-                                controller.forward,
-                                controller.backward,
-                                controller.left,
-                                controller.right,
-                                &manager.delta_time,
-                            );
-                            camera.add_yaw(-controller.delta.0);
-                            camera.add_pitch(-controller.delta.1);
-                            controller.delta = (0.0, 0.0);
-                            manager.move_camera_to_render(camera);
-                        }
-                    }
-                }
-
                 // Handle collisions
                 handle_gravity_collisions(&mut manager);
-
-                // Handle Gravity
-                // handle_gravity(&mut manager);
-
                 // Update all the changed transforms
                 update_transforms_to_renderer(&mut manager);
+                // Handle cameras
+                update_cameras(&mut manager);
 
                 manager.delta_time = Instant::now();
 

@@ -19,7 +19,7 @@ fn add_model(manager: &mut HeliumManager) {
         suzzane,
         Gravity::new(Vector3 {
             x: 0.0,
-            y: -9.8,
+            y: -98.0,
             z: 0.0,
         }),
     );
@@ -99,7 +99,7 @@ fn add_model(manager: &mut HeliumManager) {
 
 fn add_camera(manager: &mut HeliumManager) {
     let config = manager.get_render_config();
-    manager.create_camera(Camera3d::new(
+    let camera = manager.create_camera(Camera3d::new(
         (5.0, 5.0, 5.0).into(),
         (-5.0, -5.0, -5.0).into(),
         Vector3::unit_y(),
@@ -108,6 +108,19 @@ fn add_camera(manager: &mut HeliumManager) {
         0.1,
         100.0,
     ));
+
+    manager.add_component(camera, CameraController::default());
+    manager.add_component(
+        camera,
+        Transform3d::new(
+            Vector3 {
+                x: 5.0,
+                y: 5.0,
+                z: 5.0,
+            },
+            Quaternion::one(),
+        ),
+    );
 }
 
 fn update_model(manager: &mut HeliumManager) {

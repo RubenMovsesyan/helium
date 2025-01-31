@@ -1014,7 +1014,6 @@ dependencies = [
  "helium_renderer",
  "log",
  "pretty_env_logger",
- "smol",
  "wgpu",
  "winit",
 ]

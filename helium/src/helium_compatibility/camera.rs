@@ -7,8 +7,8 @@ use winit::{
 };
 
 // Change this later
-const CAMERA_SPEED: f32 = 50.0;
-const ANGLE_SPEED: f32 = 0.01;
+pub const CAMERA_SPEED: f32 = 50.0;
+pub const ANGLE_SPEED: f32 = 0.01;
 
 #[derive(Clone, Copy)]
 pub struct Camera3d {
@@ -117,8 +117,13 @@ impl Camera3d {
     pub fn get_update_flag(&self) -> bool {
         self.update_flag
     }
+
+    pub fn set_position(&mut self, new_position: Point3<f32>) {
+        self.eye = new_position;
+    }
 }
 
+#[derive(Default, Debug)]
 pub struct CameraController {
     pub forward: bool,
     pub backward: bool,
@@ -154,33 +159,7 @@ impl CameraController {
             DeviceEvent::MouseMotion { delta } => {
                 self.delta = (delta.0 as f32, delta.1 as f32);
             }
-            _ => {} // WindowEvent::KeyboardInput {
-                    //     event:
-                    //         KeyEvent {
-                    //             state,
-                    //             physical_key: PhysicalKey::Code(keycode),
-                    //             ..
-                    //         },
-                    //     ..
-                    // } => {
-                    //     let is_pressed = *state == ElementState::Pressed;
-                    //     match keycode {
-                    //         KeyCode::KeyW => {
-                    //             self.forward = is_pressed;
-                    //         }
-                    //         KeyCode::KeyS => {
-                    //             self.backward = is_pressed;
-                    //         }
-                    //         KeyCode::KeyA => {
-                    //             self.left = is_pressed;
-                    //         }
-                    //         KeyCode::KeyD => {
-                    //             self.right = is_pressed;
-                    //         }
-                    //         _ => {}
-                    //     }
-                    // }
-                    // _ => {}
+            _ => {}
         }
     }
 }
