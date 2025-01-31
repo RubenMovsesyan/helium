@@ -1,5 +1,6 @@
-use cgmath::{InnerSpace, Rad, Rotation3};
+use cgmath::{InnerSpace, Rad, Rotation3, Vector2};
 use helium::*;
+use log::*;
 
 fn add_model(manager: &mut HeliumManager) {
     let suzzane = manager.create_object(
@@ -78,23 +79,35 @@ fn add_model(manager: &mut HeliumManager) {
         ),
     );
 
-    manager.add_light(Light::new(
-        Point3 {
-            x: 5.0,
-            y: 5.0,
-            z: 0.0,
-        },
-        (1.0, 0.1, 0.1),
-    ));
+    let light1 = manager.add_light(Light::new((1.0, 0.1, 0.1)));
+    manager.add_component(
+        light1,
+        Transform3d::new(
+            Vector3 {
+                x: 5.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Quaternion::one(),
+        ),
+    );
 
-    manager.add_light(Light::new(
-        Point3 {
-            x: -5.0,
-            y: 5.0,
-            z: 0.0,
-        },
-        (0.1, 0.1, 1.0),
-    ));
+    manager.add_component(light1, Label("Red Light".to_string()));
+
+    let light2 = manager.add_light(Light::new((0.1, 0.1, 1.0)));
+    manager.add_component(
+        light2,
+        Transform3d::new(
+            Vector3 {
+                x: -5.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            Quaternion::one(),
+        ),
+    );
+
+    manager.add_component(light2, Label("Blue Light".to_string()));
 }
 
 fn add_camera(manager: &mut HeliumManager) {
@@ -124,25 +137,6 @@ fn add_camera(manager: &mut HeliumManager) {
 }
 
 fn update_model(manager: &mut HeliumManager) {
-    // let labels = manager.query::<Label>().unwrap();
-    // let mut transforms = manager.query_mut::<Transform3d>().unwrap();
-
-    // for (entity, label) in labels.iter() {
-    //     if label == &Label("Cube".to_string()) {
-    //         if let Some(cube_transform) = transforms.get_mut(entity) {
-    //             cube_transform.set_rotation(Quaternion::from_axis_angle(
-    //                 Vector3 {
-    //                     x: 1.0,
-    //                     y: 1.0,
-    //                     z: 1.0,
-    //                 }
-    //                 .normalize(),
-    //                 Rad(manager.time.elapsed().as_secs_f32()),
-    //             ));
-    //         }
-    //     }
-    // }
-
     let labels = manager.query::<Label>().unwrap();
 
     // let mut suzzane = None;
@@ -186,11 +180,52 @@ fn process_inputs(manager: &mut HeliumManager, event: &InputEvent) {
     }
 }
 
+fn update_lights(manager: &mut HeliumManager) {
+    let lights = match manager.query::<Light>() {
+        Some(lights) => lights,
+        None => return,
+    };
+
+    let mut transforms = match manager.query_mut::<Transform3d>() {
+        Some(transforms) => transforms,
+        None => return,
+    };
+
+    let labels = match manager.query::<Label>() {
+        Some(labels) => labels,
+        None => return,
+    };
+
+    for (entity, _light) in lights.iter() {
+        if let Some(transform) = transforms.get_mut(&entity) {
+            if let Some(label) = labels.get(&entity) {
+                let x = if label == &Label("Red Light".to_string()) {
+                    5.0 * f32::cos(manager.time.elapsed().as_secs_f32())
+                } else {
+                    -5.0 * f32::cos(manager.time.elapsed().as_secs_f32())
+                };
+
+                let z = if label == &Label("Red Light".to_string()) {
+                    5.0 * f32::sin(manager.time.elapsed().as_secs_f32())
+                } else {
+                    -5.0 * f32::sin(manager.time.elapsed().as_secs_f32())
+                };
+
+                let new_position = Vector3 { x, y: 5.0, z };
+
+                transform.update_position(new_position);
+                // info!("Transform: {:#?}", transform);
+            }
+        }
+    }
+}
+
 fn main() {
     let _helium = Helium::new()
         .add_startup(add_model)
         .add_startup(add_camera)
         .add_update(update_model)
+        .add_update(update_lights)
         .add_input(process_inputs)
         .run();
 }

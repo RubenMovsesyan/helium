@@ -59,7 +59,7 @@ pub struct HeliumState {
     camera_active: bool,
 
     // Lighting
-    lights: Lights,
+    pub lights: Lights,
 
     // Depth texture for rendering the correct faces of a mesh
     depth_texture: HeliumTexture,
@@ -264,8 +264,16 @@ impl HeliumState {
         self.camera_active = false;
     }
 
-    pub fn add_light(&mut self, light: Light) {
+    pub fn add_light(&mut self, light: &mut Light) {
         self.lights.add_light(light, &self.device);
+    }
+
+    pub fn update_light(&mut self, light: &Light) {
+        self.lights.update_light(light, &self.queue);
+    }
+
+    pub fn update_light_buffer(&mut self) {
+        self.lights.adjust_buffer(&self.device);
     }
 
     pub fn new(window: Arc<Window>) -> Self {

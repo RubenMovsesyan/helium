@@ -3,9 +3,9 @@ use helium_renderer::instance::Instance;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Transform3d {
-    pub position: Vector3<f32>,
-    pub rotation: Quaternion<f32>,
-    pub update_flag: bool,
+    position: Vector3<f32>,
+    rotation: Quaternion<f32>,
+    update_flag: bool,
 }
 
 impl Default for Transform3d {
@@ -51,6 +51,10 @@ impl Transform3d {
 
     pub fn update(&mut self) {
         self.update_flag = false;
+    }
+
+    pub fn get_update_flag(&self) -> &bool {
+        &self.update_flag
     }
 
     // Getters

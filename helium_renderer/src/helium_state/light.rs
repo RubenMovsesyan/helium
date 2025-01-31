@@ -1,15 +1,18 @@
-use cgmath::Point3;
+use cgmath::{Vector3, Zero};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, Device,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferUsages, Device, Queue,
     ShaderStages,
 };
+
+use log::*;
 
 pub struct Lights {
     lights: Vec<Light>,
     buffer: Option<Buffer>,
     bind_group: Option<BindGroup>,
+    pub update_flag: bool,
 }
 
 #[repr(C)]
@@ -25,12 +28,27 @@ impl Lights {
             lights: Vec::new(),
             buffer: None,
             bind_group: None,
+            update_flag: false,
         }
     }
 
-    pub fn add_light(&mut self, light: Light, device: &Device) {
-        self.lights.push(light);
+    pub fn add_light(&mut self, light: &mut Light, device: &Device) {
+        light.index = self.lights.len();
+        self.lights.push(light.clone());
         self.adjust_buffer(device);
+    }
+
+    // HACK: This needs to be fixed in a much better way
+    pub fn update_light(&mut self, light: &Light, queue: &Queue) {
+        let index = light.index * 24;
+        // info!("Updating: {}", index);
+        // let new_buffer: &[u8] = bytemuck::cast_slice(&[light.to_raw()]);
+
+        queue.write_buffer(
+            self.buffer.as_ref().unwrap(),
+            index as u64,
+            bytemuck::cast_slice(&[light.to_raw()]),
+        );
     }
 
     pub fn get_bind_group_layout(device: &Device) -> BindGroupLayout {
@@ -53,9 +71,13 @@ impl Lights {
         self.bind_group.as_ref().unwrap()
     }
 
+    pub fn get_buffer(&self) -> &Buffer {
+        self.buffer.as_ref().unwrap()
+    }
+
     /// Converts the lights vector into a storage buffer to be accessed
     /// On the GPU
-    fn adjust_buffer(&mut self, device: &Device) {
+    pub fn adjust_buffer(&mut self, device: &Device) {
         let mut light_buffer = Vec::new();
 
         for light in self.lights.iter() {
@@ -63,17 +85,7 @@ impl Lights {
                 position: [light.position.x, light.position.y, light.position.z],
                 color: [light.color.0, light.color.1, light.color.2],
             });
-            // light_buffer.push([
-            //     light.position.x,
-            //     light.position.y,
-            //     light.position.z,
-            //     light.color.0,
-            //     light.color.1,
-            //     light.color.2,
-            // ]);
         }
-
-        // let lights_raw: &[f32] = bytemuck::cast_slice(light_buffer.as_flattened());
 
         let buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Lights Buffer"),
@@ -96,23 +108,43 @@ impl Lights {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Light {
-    position: Point3<f32>,
+    position: Vector3<f32>,
     color: (f32, f32, f32),
+    pub index: usize,
 }
 
 impl Light {
-    pub fn new(position: Point3<f32>, color: (f32, f32, f32)) -> Self {
-        Self { position, color }
+    // pub fn new(position: Vector3<f32>, color: (f32, f32, f32)) -> Self {
+    //     Self {
+    //         position,
+    //         color,
+    //         index: 0,
+    //     }
+    // }
+    pub fn new(color: (f32, f32, f32)) -> Self {
+        Self {
+            position: Vector3::zero(),
+            color,
+            index: 0,
+        }
     }
 
-    pub fn update_position(&mut self, position: Point3<f32>) -> &mut Self {
-        self.position = position;
+    pub fn update_position(&mut self, position: &Vector3<f32>) -> &mut Self {
+        self.position = position.clone();
         self
     }
 
     pub fn update_color(&mut self, color: (f32, f32, f32)) -> &mut Self {
         self.color = color;
         self
+    }
+
+    fn to_raw(&self) -> LightRaw {
+        LightRaw {
+            position: [self.position.x, self.position.y, self.position.z],
+            color: [self.color.0, self.color.1, self.color.2],
+        }
     }
 }

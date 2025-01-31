@@ -69,12 +69,16 @@ impl HeliumManager {
         self.renderer_instance.lock().unwrap().state.config.clone()
     }
 
-    pub fn add_light(&mut self, light: Light) {
+    pub fn add_light(&mut self, mut light: Light) -> Entity {
         self.renderer_instance
             .lock()
             .unwrap()
             .state
-            .add_light(light);
+            .add_light(&mut light);
+
+        let light_entity = self.ecs_instance.new_entity();
+        self.ecs_instance.add_component(light_entity, light.clone());
+        light_entity
     }
 
     /// Creates a 3d camera to view the scene with. The rendering will be skipped if
@@ -393,29 +397,6 @@ fn handle_gravity_collisions(manager: &mut HeliumManager) {
     }
 }
 
-#[allow(unused)]
-#[deprecated]
-fn handle_gravity(manager: &mut HeliumManager) {
-    let mut transforms = match manager.query_mut::<Transform3d>() {
-        Some(transforms) => transforms,
-        None => return,
-    };
-
-    let mut gravities = match manager.query_mut::<Gravity>() {
-        Some(gravities) => gravities,
-        None => return,
-    };
-
-    let mut entity_update_list = Vec::new();
-    for (entity, gravity) in gravities.iter_mut() {
-        gravity.update_gravity(&manager.delta_time);
-        if let Some(transform) = transforms.get_mut(entity) {
-            transform.add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
-            entity_update_list.push(*entity);
-        }
-    }
-}
-
 fn update_cameras(manager: &mut HeliumManager) {
     let mut transforms = match manager.query_mut::<Transform3d>() {
         Some(transforms) => transforms,
@@ -439,7 +420,6 @@ fn update_cameras(manager: &mut HeliumManager) {
             camera.add_yaw(-controller.delta.0);
             camera.add_pitch(-controller.delta.1);
             controller.delta = (0.0, 0.0);
-            manager.move_camera_to_render(camera);
 
             if let Some(transform) = transforms.get_mut(&entity) {
                 let forward_norm = camera.target.normalize();
@@ -470,6 +450,8 @@ fn update_cameras(manager: &mut HeliumManager) {
                     );
                 }
             }
+
+            manager.move_camera_to_render(camera);
         }
     }
 }
@@ -490,8 +472,11 @@ fn update_transforms_to_renderer(manager: &mut HeliumManager) {
     // Rectangle Colliders to update if it exists
     let mut colliders = manager.query_mut::<RectangleCollider>();
 
+    // Lights to update if exists
+    let mut lights = manager.query_mut::<Light>();
+
     for (entity, transform) in transforms.iter_mut() {
-        if !transform.update_flag {
+        if !transform.get_update_flag() {
             continue;
         }
 
@@ -519,16 +504,32 @@ fn update_transforms_to_renderer(manager: &mut HeliumManager) {
                 if let Some(camera) = cameras.get_mut(&entity) {
                     let pos = transform.get_position();
                     camera.set_position(cgmath::point3::<f32>(pos.x, pos.y, pos.z));
-                    // manager.move_camera_to_render(camera);
                 }
             }
             None => {}
         }
 
+        // Update the colliders position
         match colliders.as_mut() {
             Some(colliders) => {
                 if let Some(collider) = colliders.get_mut(&entity) {
                     collider.set_origin(transform.get_position());
+                }
+            }
+            None => {}
+        }
+
+        // Update the lights position
+        match lights.as_mut() {
+            Some(lights) => {
+                if let Some(light) = lights.get_mut(&entity) {
+                    light.update_position(transform.get_position());
+                    manager
+                        .renderer_instance
+                        .lock()
+                        .unwrap()
+                        .state
+                        .update_light(&light);
                 }
             }
             None => {}
@@ -697,6 +698,7 @@ impl ApplicationHandler for Helium {
                 update_transforms_to_renderer(&mut manager);
                 // Handle cameras
                 update_cameras(&mut manager);
+                // Handle lights
 
                 manager.delta_time = Instant::now();
 
