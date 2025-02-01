@@ -198,8 +198,8 @@ fn update_lights(manager: &mut HeliumManager) {
     };
 
     for (entity, _light) in lights.iter() {
-        if let Some(transform) = transforms.get_mut(&entity) {
-            if let Some(label) = labels.get(&entity) {
+        if let Some(transform) = transforms.get_mut(entity) {
+            if let Some(label) = labels.get(entity) {
                 let x = if label == &Label("Red Light".to_string()) {
                     5.0 * f32::cos(manager.time.elapsed().as_secs_f32())
                 } else {
@@ -222,7 +222,7 @@ fn update_lights(manager: &mut HeliumManager) {
 }
 
 fn main() {
-    let _helium = Helium::new()
+    Helium::default()
         .add_startup(add_model)
         .add_startup(add_camera)
         .add_update(update_model)

@@ -92,11 +92,11 @@ impl Transform3d {
     // }
 }
 
-impl Into<Instance> for Transform3d {
-    fn into(self) -> Instance {
+impl From<Transform3d> for Instance {
+    fn from(value: Transform3d) -> Self {
         Instance {
-            position: self.position,
-            rotation: self.rotation,
+            position: value.position,
+            rotation: value.rotation,
         }
     }
 }

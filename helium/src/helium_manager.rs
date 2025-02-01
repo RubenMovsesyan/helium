@@ -1,7 +1,7 @@
 use crate::helium_compatibility::{Camera3d, Model3d, Transform3d};
 pub use cgmath::{Quaternion, Vector3};
 pub use helium_ecs::{Entity, HeliumECS};
-use helium_renderer::{HeliumRenderer, Light};
+use helium_renderer::{HeliumState, Light};
 pub use std::cell::{Ref, RefMut};
 pub use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -10,7 +10,7 @@ use wgpu::SurfaceConfiguration;
 
 pub struct HeliumManager {
     pub ecs_instance: HeliumECS,
-    pub renderer_instance: Arc<Mutex<HeliumRenderer>>,
+    pub renderer_instance: Arc<Mutex<HeliumState>>,
 
     // For easy access to the camera
     pub camera_id: Option<Entity>,
@@ -20,7 +20,7 @@ pub struct HeliumManager {
 }
 
 impl HeliumManager {
-    pub fn new(ecs: HeliumECS, renderer: Arc<Mutex<HeliumRenderer>>) -> Self {
+    pub fn new(ecs: HeliumECS, renderer: Arc<Mutex<HeliumState>>) -> Self {
         Self {
             ecs_instance: ecs,
             renderer_instance: renderer.clone(),
@@ -31,18 +31,14 @@ impl HeliumManager {
     }
 
     pub fn get_render_config(&self) -> SurfaceConfiguration {
-        self.renderer_instance.lock().unwrap().state.config.clone()
+        self.renderer_instance.lock().unwrap().config.clone()
     }
 
     pub fn add_light(&mut self, mut light: Light) -> Entity {
-        self.renderer_instance
-            .lock()
-            .unwrap()
-            .state
-            .add_light(&mut light);
+        self.renderer_instance.lock().unwrap().add_light(&mut light);
 
         let light_entity = self.ecs_instance.new_entity();
-        self.ecs_instance.add_component(light_entity, light.clone());
+        self.ecs_instance.add_component(light_entity, light);
         light_entity
     }
 
@@ -57,7 +53,7 @@ impl HeliumManager {
     ///
     /// The entity id
     pub fn create_camera(&mut self, camera: Camera3d) -> Entity {
-        self.renderer_instance.lock().unwrap().state.add_camera(
+        self.renderer_instance.lock().unwrap().add_camera(
             camera.eye,
             camera.target,
             camera.up,
@@ -69,16 +65,6 @@ impl HeliumManager {
 
         let camera_entity = self.ecs_instance.new_entity();
         self.ecs_instance.add_component(camera_entity, camera);
-        // self.ecs_instance.add_component(
-        //     camera_entity,
-        //     CameraController {
-        //         forward: false,
-        //         backward: false,
-        //         left: false,
-        //         right: false,
-        //         delta: (0.0, 0.0),
-        //     },
-        // );
         self.camera_id = Some(camera_entity);
         camera_entity
     }
@@ -89,7 +75,7 @@ impl HeliumManager {
     ///
     /// * `camera` - the new camera
     pub fn update_camera(&mut self, camera: Camera3d) {
-        self.renderer_instance.lock().unwrap().state.update_camera(
+        self.renderer_instance.lock().unwrap().update_camera(
             camera.eye,
             camera.target,
             camera.up,
@@ -104,7 +90,7 @@ impl HeliumManager {
 
     /// Used internally to update the camera position
     pub fn move_camera_to_render(&self, camera: &Camera3d) {
-        self.renderer_instance.lock().unwrap().state.update_camera(
+        self.renderer_instance.lock().unwrap().update_camera(
             camera.eye,
             camera.target,
             camera.up,
@@ -139,8 +125,7 @@ impl HeliumManager {
             .renderer_instance
             .lock()
             .unwrap()
-            .state
-            .create_object(model.get_path(), vec![transform.clone().into()]);
+            .create_object(model.get_path(), vec![transform.into()]);
 
         model.set_renderer_index(renderer_index);
 
@@ -167,35 +152,32 @@ impl HeliumManager {
         self.ecs_instance.add_component(entity, transform);
 
         // Get the renderer index from the model
-        let object_index = self
+        let object_index = *self
             .ecs_instance
             .query::<Model3d>()
             .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
-            .unwrap()
-            .clone();
+            .unwrap();
 
         let mut renderer = self.renderer_instance.lock().unwrap();
-        renderer
-            .state
-            .update_instances(object_index, vec![transform.into()]);
+        renderer.update_instances(object_index, vec![transform.into()]);
 
         entity
     }
 
     #[deprecated]
     pub fn set_position(&mut self, entity: Entity, position: Vector3<f32>) {
-        let object_index = self
+        let object_index = *self
             .ecs_instance
             .query::<Model3d>()
             .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
-            .unwrap()
-            .clone();
+            .unwrap();
+
         if let Some(transform) = self
             .ecs_instance
             .query_mut::<Transform3d>()
@@ -206,22 +188,21 @@ impl HeliumManager {
             self.renderer_instance
                 .lock()
                 .unwrap()
-                .state
-                .update_instances(object_index, vec![transform.clone().into()]);
+                .update_instances(object_index, vec![(*transform).into()]);
         }
     }
 
     // #[deprecated]
     pub fn set_rotation(&mut self, entity: Entity, rotation: Quaternion<f32>) {
-        let object_index = self
+        let object_index = *self
             .ecs_instance
             .query::<Model3d>()
             .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
-            .unwrap()
-            .clone();
+            .unwrap();
+
         if let Some(transform) = self
             .ecs_instance
             .query_mut::<Transform3d>()
@@ -232,29 +213,27 @@ impl HeliumManager {
             self.renderer_instance
                 .lock()
                 .unwrap()
-                .state
-                .update_instances(object_index, vec![transform.clone().into()]);
+                .update_instances(object_index, vec![(*transform).into()]);
         }
     }
 
     #[deprecated]
     pub fn move_transform_to_renderer(&self, entity: Entity) {
-        let object_index = self
+        let object_index = *self
             .ecs_instance
             .query::<Model3d>()
             .unwrap()
             .get(&entity)
             .unwrap()
             .get_renderer_index()
-            .unwrap()
-            .clone();
+            .unwrap();
+
         let transforms = self.ecs_instance.query::<Transform3d>();
         if let Some(transform) = transforms.unwrap().get(&entity) {
             self.renderer_instance
                 .lock()
                 .unwrap()
-                .state
-                .update_instances(object_index, vec![transform.clone().into()]);
+                .update_instances(object_index, vec![(*transform).into()]);
         }
     }
 

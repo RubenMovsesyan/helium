@@ -3,7 +3,7 @@ use log::*;
 use std::{fs, io, path::Path};
 use wgpu::{Device, Queue};
 
-use crate::helium_state::helium_texture::HeliumTexture;
+use crate::helium_texture::HeliumTexture;
 
 pub struct Material {
     name: String,
@@ -35,7 +35,7 @@ where
     let mut materials: Vec<Material> = Vec::new();
     for line in lines.map_while(Result::ok) {
         let line_split = line.split_whitespace().collect::<Vec<_>>();
-        if line_split.len() < 1 {
+        if line_split.is_empty() {
             continue;
         }
 

@@ -55,7 +55,8 @@ impl Camera {
         })
     }
 
-    pub fn new(
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
         device: &Device,
         eye: Point3<f32>,
         target: Vector3<f32>,
@@ -65,7 +66,7 @@ impl Camera {
         znear: f32,
         zfar: f32,
     ) -> Self {
-        let mut camera_uniform = CameraUniform::new();
+        let mut camera_uniform = CameraUniform::default();
         camera_uniform.update_view_proj_with_matrix(
             eye,
             Self::build_view_projection_matrix_parts(eye, target, up, aspect, fovy, znear, zfar),
@@ -161,14 +162,16 @@ pub struct CameraUniform {
     view_proj: [[f32; 4]; 4],
 }
 
-impl CameraUniform {
-    pub fn new() -> Self {
+impl Default for CameraUniform {
+    fn default() -> Self {
         Self {
             view_position: [0.0; 4],
             view_proj: Matrix4::identity().into(),
         }
     }
+}
 
+impl CameraUniform {
     pub fn update_view_proj_with_matrix(&mut self, eye: Point3<f32>, matrix: Matrix4<f32>) {
         self.view_position = eye.to_homogeneous().into();
         self.view_proj = matrix.into();

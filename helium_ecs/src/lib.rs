@@ -14,13 +14,15 @@ pub struct HeliumECS {
     world: World,
 }
 
-impl HeliumECS {
-    pub fn new() -> Self {
+impl Default for HeliumECS {
+    fn default() -> Self {
         Self {
             world: World::new(),
         }
     }
+}
 
+impl HeliumECS {
     /// Creates a new entity in the world
     ///
     /// # Returns
@@ -127,7 +129,7 @@ mod tests {
         struct Name(String);
         struct Player;
 
-        let mut ecs = HeliumECS::new();
+        let mut ecs = HeliumECS::default();
 
         let ralph = ecs.new_entity();
         let betty = ecs.new_entity();

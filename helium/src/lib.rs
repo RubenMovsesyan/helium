@@ -35,7 +35,7 @@ pub use helium_compatibility::{Camera3d, CameraController, Label, Model3d, Trans
 pub use helium_ecs::{Entity, HeliumECS};
 pub use helium_manager::HeliumManager;
 pub use helium_physics::gravity::Gravity;
-pub use helium_renderer::{helium_state::Light, instance::Instance, HeliumRenderer, HeliumState};
+pub use helium_renderer::{instance::Instance, HeliumState, Light};
 
 mod helium_compatibility;
 mod helium_manager;
@@ -70,13 +70,15 @@ fn handle_gravity_collisions(manager: &mut HeliumManager) {
     for (entity, rectangle_colider) in rectangle_colliders.iter_mut() {
         if let Some(gravity) = gravities.get_mut(entity) {
             gravity.update_gravity(&manager.delta_time);
-            if let Some(transform) = transforms.get_mut(&entity) {
+
+            if let Some(transform) = transforms.get_mut(entity) {
                 for (_, plane_collider) in stationary_plane_colliders.iter() {
                     if rectangle_colider.is_colliding(plane_collider) {
                         rectangle_colider.snap_y(plane_collider);
                         gravity.kill_velocity();
                     }
                 }
+
                 transform
                     .add_position(gravity.velocity * manager.delta_time.elapsed().as_secs_f32());
             }
@@ -103,12 +105,12 @@ fn update_cameras(manager: &mut HeliumManager) {
     // If any of the above doesn't exist there is no point of continuing on
 
     for (entity, controller) in camera_controllers.iter_mut() {
-        if let Some(camera) = cameras.get_mut(&entity) {
+        if let Some(camera) = cameras.get_mut(entity) {
             camera.add_yaw(-controller.delta.0);
             camera.add_pitch(-controller.delta.1);
             controller.delta = (0.0, 0.0);
 
-            if let Some(transform) = transforms.get_mut(&entity) {
+            if let Some(transform) = transforms.get_mut(entity) {
                 let forward_norm = camera.target.normalize();
 
                 if controller.forward {
@@ -168,58 +170,40 @@ fn update_transforms_to_renderer(manager: &mut HeliumManager) {
         }
 
         // Update the model position
-        match models.as_ref() {
-            Some(models) => {
-                if let Some(object_index) = models.get(&entity) {
-                    manager
-                        .renderer_instance
-                        .lock()
-                        .unwrap()
-                        .state
-                        .update_instances(
-                            object_index.get_renderer_index().unwrap().clone(),
-                            vec![transform.clone().into()],
-                        );
-                }
+        if let Some(models) = models.as_ref() {
+            if let Some(object_index) = models.get(entity) {
+                manager.renderer_instance.lock().unwrap().update_instances(
+                    *object_index.get_renderer_index().unwrap(),
+                    vec![(*transform).into()],
+                );
             }
-            None => {}
         }
 
         // Update the Camera position
-        match cameras.as_mut() {
-            Some(cameras) => {
-                if let Some(camera) = cameras.get_mut(&entity) {
-                    let pos = transform.get_position();
-                    camera.set_position(cgmath::point3::<f32>(pos.x, pos.y, pos.z));
-                }
+        if let Some(cameras) = cameras.as_mut() {
+            if let Some(camera) = cameras.get_mut(entity) {
+                let pos = transform.get_position();
+                camera.set_position(cgmath::point3::<f32>(pos.x, pos.y, pos.z));
             }
-            None => {}
         }
 
         // Update the colliders position
-        match colliders.as_mut() {
-            Some(colliders) => {
-                if let Some(collider) = colliders.get_mut(&entity) {
-                    collider.set_origin(transform.get_position());
-                }
+        if let Some(colliders) = colliders.as_mut() {
+            if let Some(collider) = colliders.get_mut(entity) {
+                collider.set_origin(transform.get_position());
             }
-            None => {}
         }
 
         // Update the lights position
-        match lights.as_mut() {
-            Some(lights) => {
-                if let Some(light) = lights.get_mut(&entity) {
-                    light.update_position(transform.get_position());
-                    manager
-                        .renderer_instance
-                        .lock()
-                        .unwrap()
-                        .state
-                        .update_light(&light);
-                }
+        if let Some(lights) = lights.as_mut() {
+            if let Some(light) = lights.get_mut(entity) {
+                light.update_position(transform.get_position());
+                manager
+                    .renderer_instance
+                    .lock()
+                    .unwrap()
+                    .update_light(light);
             }
-            None => {}
         }
 
         transform.update();
@@ -242,7 +226,7 @@ pub struct Helium {
     /// Event handling for the window
     event_handler: Arc<Mutex<VecDeque<InputEvent>>>,
     /// Renderer for the window
-    renderer: Option<Arc<Mutex<HeliumRenderer>>>,
+    renderer: Option<Arc<Mutex<HeliumState>>>,
     /// Thread that runs continuously to call update functions from the user
     update_thread: Option<thread::JoinHandle<()>>,
     /// Boolean to keep track of the running thread
@@ -251,8 +235,8 @@ pub struct Helium {
     fps: Instant,
 }
 
-impl Helium {
-    pub fn new() -> Self {
+impl Default for Helium {
+    fn default() -> Self {
         let event_loop = EventLoop::new().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
         Self {
@@ -268,7 +252,9 @@ impl Helium {
             fps: Instant::now(),
         }
     }
+}
 
+impl Helium {
     /// Adds a startup function to be executed when the engine starts
     ///
     /// # Arguments
@@ -340,7 +326,10 @@ impl ApplicationHandler for Helium {
                 .unwrap(),
         ));
 
-        self.renderer = Some(Arc::new(Mutex::new(HeliumRenderer::new(
+        // self.renderer = Some(Arc::new(Mutex::new(HeliumRenderer::new(
+        //     self.window.as_ref().unwrap().clone(),
+        // ))));
+        self.renderer = Some(Arc::new(Mutex::new(HeliumState::new(
             self.window.as_ref().unwrap().clone(),
         ))));
 
@@ -356,7 +345,7 @@ impl ApplicationHandler for Helium {
 
         // This is the continuously running update thread
         self.update_thread = Some(thread::spawn(move || {
-            let new_ecs = HeliumECS::new();
+            let new_ecs = HeliumECS::default();
             let mut manager = HeliumManager::new(new_ecs, renderer_clone);
             info!("Starting Helium ECS");
 
@@ -388,7 +377,7 @@ impl ApplicationHandler for Helium {
                 // Handle lights
                 manager.delta_time = Instant::now();
 
-                if *event_loop_working_clone.lock().unwrap() == false {
+                if !(*event_loop_working_clone.lock().unwrap()) {
                     break;
                 }
             }
@@ -412,18 +401,18 @@ impl ApplicationHandler for Helium {
                 WindowEvent::RedrawRequested => {
                     // Redraw the application
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
-                        renderer.state.fps =
+                        renderer.fps =
                             format!("{:>7.2} FPS", 1.0 / self.fps.elapsed().as_secs_f32());
-                        renderer.render();
+                        _ = renderer.render();
                         self.fps = Instant::now();
                     }
                 }
                 WindowEvent::Resized(new_size) => {
                     if let Ok(renderer) = self.renderer.as_ref().unwrap().clone().lock().as_mut() {
                         renderer.resize(new_size);
-                        renderer.state.brush.resize_view(
-                            renderer.state.config.width as f32,
-                            renderer.state.config.height as f32,
+                        renderer.brush.resize_view(
+                            renderer.config.width as f32,
+                            renderer.config.height as f32,
                             renderer.get_queue(),
                         )
                     }

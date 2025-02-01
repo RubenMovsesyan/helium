@@ -56,7 +56,7 @@ impl RectangleCollider {
     ) -> [Vector3<f32>; 8] {
         let (width_2, height_2, length_2) = (width / 2.0, height / 2.0, length / 2.0);
 
-        let vertices = [
+        [
             Vector3 {
                 x: origin.x + width_2,
                 y: origin.y + height_2,
@@ -97,9 +97,7 @@ impl RectangleCollider {
                 y: origin.y - height_2,
                 z: origin.z - length_2,
             },
-        ];
-
-        vertices
+        ]
     }
 
     pub fn new(width: f32, height: f32, length: f32, origin: Vector3<f32>) -> Self {
@@ -157,7 +155,9 @@ impl Collider for RectangleCollider {
                 for projected_point in projected_points {
                     // For every point in the plane
                     let mut signs: [f32; 4] = [0.0; 4];
-                    for plane_point_index in 0..num_plane_points {
+                    for (plane_point_index, item) in
+                        signs.iter_mut().enumerate().take(num_plane_points)
+                    {
                         // Find the vector from the current point to one of the points on the plane
                         // and also the vector to the next one
                         let vec_a = plane.plane_points[plane_point_index] - projected_point;
@@ -167,7 +167,7 @@ impl Collider for RectangleCollider {
                         // This is the area of the triangle created by the vector a and b
                         let cross = vec_a.cross(vec_b);
                         // Find the direction of each vector relative to the normal of the plane
-                        signs[plane_point_index] = if plane.local_normal.dot(cross) < 0.0 {
+                        *item = if plane.local_normal.dot(cross) < 0.0 {
                             -1.0
                         } else {
                             1.0
@@ -307,7 +307,7 @@ impl Collider for RectangleCollider {
     }
 
     fn set_origin(&mut self, new_origin: &Vector3<f32>) {
-        self.origin = new_origin.clone();
+        self.origin = *new_origin;
         self.vertices = Self::compute_vertices(self.width, self.height, self.length, &self.origin);
     }
 

@@ -3,7 +3,6 @@ pub mod instance;
 pub mod material;
 pub mod mesh;
 pub mod model_vertex;
-pub mod render_pipeline;
 pub mod vertex;
 
 // Std
@@ -42,7 +41,7 @@ impl Model {
     }
 
     pub fn get_instances(&self) -> Range<u32> {
-        if self.meshes.len() > 0 {
+        if !self.meshes.is_empty() {
             return self.meshes[0].get_instances();
         }
 
@@ -50,7 +49,7 @@ impl Model {
     }
 
     pub fn get_num_instances(&self) -> u32 {
-        if self.meshes.len() > 0 {
+        if !self.meshes.is_empty() {
             return self.meshes[0].get_num_instances();
         }
 
@@ -80,23 +79,19 @@ impl Model {
                 for line in lines.map_while(Result::ok) {
                     let line_split = line.split_whitespace().collect::<Vec<_>>();
 
-                    if line_split.len() < 1 {
+                    if line_split.is_empty() {
                         continue;
                     }
 
                     match line_split[0] {
                         // This is an object
                         "o" => {
-                            match mesh_name.take() {
-                                Some(name) => {
-                                    let mut new_mesh =
-                                        Mesh::new(name, model_vertices, indices, device);
-                                    new_mesh.set_material(material_index.take());
-                                    meshes.push(new_mesh);
-                                    model_vertices = Vec::new();
-                                    indices = Vec::new();
-                                }
-                                None => {}
+                            if let Some(name) = mesh_name.take() {
+                                let mut new_mesh = Mesh::new(name, model_vertices, indices, device);
+                                new_mesh.set_material(material_index.take());
+                                meshes.push(new_mesh);
+                                model_vertices = Vec::new();
+                                indices = Vec::new();
                             }
 
                             mesh_name = Some(line_split[1].to_string());
@@ -181,20 +176,17 @@ impl Model {
                 }
 
                 // Add any remaining meshes in the object file
-                match mesh_name.take() {
-                    Some(name) => {
-                        let mut new_mesh = Mesh::new(name, model_vertices, indices, device);
-                        new_mesh.set_material(material_index.take());
-                        meshes.push(new_mesh);
-                    }
-                    None => {}
+                if let Some(name) = mesh_name.take() {
+                    let mut new_mesh = Mesh::new(name, model_vertices, indices, device);
+                    new_mesh.set_material(material_index.take());
+                    meshes.push(new_mesh);
                 }
 
                 Ok(Self { meshes, materials })
             }
             Err(e) => {
                 error!("Error: {}", e);
-                Err(Error::from(e))
+                Err(e)
             }
         }
     }

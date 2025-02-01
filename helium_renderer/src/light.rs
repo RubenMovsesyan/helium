@@ -9,6 +9,7 @@ use wgpu::{
 #[allow(unused_imports)]
 use log::*;
 
+#[derive(Default)]
 pub struct Lights {
     lights: Vec<Light>,
     buffer: Option<Buffer>,
@@ -24,18 +25,9 @@ struct LightRaw {
 }
 
 impl Lights {
-    pub fn new() -> Self {
-        Self {
-            lights: Vec::new(),
-            buffer: None,
-            bind_group: None,
-            update_flag: false,
-        }
-    }
-
     pub fn add_light(&mut self, light: &mut Light, device: &Device) {
         light.index = self.lights.len();
-        self.lights.push(light.clone());
+        self.lights.push(*light);
         self.adjust_buffer(device);
     }
 
@@ -117,13 +109,6 @@ pub struct Light {
 }
 
 impl Light {
-    // pub fn new(position: Vector3<f32>, color: (f32, f32, f32)) -> Self {
-    //     Self {
-    //         position,
-    //         color,
-    //         index: 0,
-    //     }
-    // }
     pub fn new(color: (f32, f32, f32)) -> Self {
         Self {
             position: Vector3::zero(),
@@ -133,7 +118,7 @@ impl Light {
     }
 
     pub fn update_position(&mut self, position: &Vector3<f32>) -> &mut Self {
-        self.position = position.clone();
+        self.position = *position;
         self
     }
 
@@ -142,7 +127,7 @@ impl Light {
         self
     }
 
-    fn to_raw(&self) -> LightRaw {
+    fn to_raw(self) -> LightRaw {
         LightRaw {
             position: [self.position.x, self.position.y, self.position.z],
             color: [self.color.0, self.color.1, self.color.2],
